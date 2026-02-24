@@ -27,21 +27,18 @@ final class AnalyticsService: ObservableObject {
 
     func loadAll() async {
         guard !isLoading else { return }
-
-        guard let propertyID = selectedProject.ga4PropertyID else {
-            error = "\(selectedProject.name) has no Google Analytics property linked."
-            return
-        }
-
         isLoading = true
         error = nil
         defer { isLoading = false }
 
+        let propertyID = selectedProject.ga4PropertyID
+        let streamFilter = selectedProject.streamIDs.map { RunReportRequest.streamFilter(ids: $0) }
+
         do {
             let token = try await getToken()
-            async let statsTask   = fetchStats(token: token, propertyID: propertyID)
-            async let countryTask = fetchCountryData(token: token, propertyID: propertyID)
-            async let versionTask = fetchAppVersionData(token: token, propertyID: propertyID)
+            async let statsTask   = fetchStats(token: token, propertyID: propertyID, filter: streamFilter)
+            async let countryTask = fetchCountryData(token: token, propertyID: propertyID, filter: streamFilter)
+            async let versionTask = fetchAppVersionData(token: token, propertyID: propertyID, filter: streamFilter)
             let (newStats, countries, versions) = try await (statsTask, countryTask, versionTask)
             self.stats = newStats
             self.countryData = countries
@@ -65,7 +62,7 @@ final class AnalyticsService: ObservableObject {
 
     // MARK: - Fetch stats
 
-    private func fetchStats(token: String, propertyID: String) async throws -> DashboardStats {
+    private func fetchStats(token: String, propertyID: String, filter: RunReportRequest.DimensionFilter?) async throws -> DashboardStats {
         let request = RunReportRequest(
             dateRanges: [.init(startDate: "30daysAgo", endDate: "today")],
             dimensions: [],
@@ -76,7 +73,8 @@ final class AnalyticsService: ObservableObject {
                 .init(name: "eventCount"),
                 .init(name: "screenPageViews")
             ],
-            limit: 1
+            limit: 1,
+            dimensionFilter: filter
         )
         let response = try await runReport(request: request, token: token, propertyID: propertyID)
         var s = DashboardStats()
@@ -95,7 +93,7 @@ final class AnalyticsService: ObservableObject {
 
     // MARK: - Fetch per-app-version breakdown
 
-    private func fetchAppVersionData(token: String, propertyID: String) async throws -> [AppVersionStats] {
+    private func fetchAppVersionData(token: String, propertyID: String, filter: RunReportRequest.DimensionFilter?) async throws -> [AppVersionStats] {
         let request = RunReportRequest(
             dateRanges: [.init(startDate: "30daysAgo", endDate: "today")],
             dimensions: [.init(name: "appVersion"), .init(name: "operatingSystemVersion")],
@@ -105,7 +103,8 @@ final class AnalyticsService: ObservableObject {
                 .init(name: "eventCount"),
                 .init(name: "crashAffectedUsers")
             ],
-            limit: 50
+            limit: 50,
+            dimensionFilter: filter
         )
         let response = try await runReport(request: request, token: token, propertyID: propertyID)
         return (response.rows ?? []).compactMap { row in
@@ -126,12 +125,13 @@ final class AnalyticsService: ObservableObject {
 
     // MARK: - Fetch user counts by country
 
-    private func fetchCountryData(token: String, propertyID: String) async throws -> [CountryUserCount] {
+    private func fetchCountryData(token: String, propertyID: String, filter: RunReportRequest.DimensionFilter?) async throws -> [CountryUserCount] {
         let request = RunReportRequest(
             dateRanges: [.init(startDate: "30daysAgo", endDate: "today")],
             dimensions: [.init(name: "country")],
             metrics: [.init(name: "activeUsers")],
-            limit: 100
+            limit: 100,
+            dimensionFilter: filter
         )
         let response = try await runReport(request: request, token: token, propertyID: propertyID)
         return (response.rows ?? []).compactMap { row in

@@ -31,7 +31,7 @@ private struct ProjectChip: View {
         switch project.tintColor {
         case .orange: return .orange
         case .blue:   return .blue
-        case .green:  return .green
+        case .purple: return .purple
         }
     }
 
@@ -41,11 +41,6 @@ private struct ProjectChip: View {
                 .font(.subheadline)
             Text(project.name)
                 .font(.subheadline.weight(isSelected ? .semibold : .regular))
-            if project.ga4PropertyID == nil {
-                Image(systemName: "exclamationmark.circle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
         }
         .foregroundStyle(isSelected ? .white : color)
         .padding(.horizontal, 14)

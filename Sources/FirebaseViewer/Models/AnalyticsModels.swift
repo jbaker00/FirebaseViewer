@@ -7,6 +7,7 @@ struct RunReportRequest: Encodable {
     let dimensions: [Dimension]
     let metrics: [Metric]
     let limit: Int?
+    let dimensionFilter: DimensionFilter?
 
     struct DateRange: Encodable {
         let startDate: String
@@ -17,6 +18,41 @@ struct RunReportRequest: Encodable {
     }
     struct Metric: Encodable {
         let name: String
+    }
+
+    // Filters to one or more streamId values
+    struct DimensionFilter: Encodable {
+        let orGroup: OrGroup?
+        let filter: SingleFilter?
+
+        struct OrGroup: Encodable {
+            let expressions: [Expression]
+            struct Expression: Encodable {
+                let filter: SingleFilter
+            }
+        }
+        struct SingleFilter: Encodable {
+            let fieldName: String
+            let stringFilter: StringFilter
+            struct StringFilter: Encodable {
+                let value: String
+            }
+        }
+    }
+
+    static func streamFilter(ids: [String]) -> DimensionFilter {
+        if ids.count == 1 {
+            return DimensionFilter(
+                orGroup: nil,
+                filter: .init(fieldName: "streamId", stringFilter: .init(value: ids[0]))
+            )
+        }
+        let expressions = ids.map {
+            DimensionFilter.OrGroup.Expression(
+                filter: .init(fieldName: "streamId", stringFilter: .init(value: $0))
+            )
+        }
+        return DimensionFilter(orGroup: .init(expressions: expressions), filter: nil)
     }
 }
 
