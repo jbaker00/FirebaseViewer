@@ -5,6 +5,34 @@ struct AdMobMapView: View {
     @EnvironmentObject private var service: AdMobService
     @State private var selected: AdMobCountryStats?
     @State private var cameraPosition: MapCameraPosition = .automatic
+    @State private var selectedApp: String? = nil  // nil = all apps
+
+    /// Distinct app names across all countries, sorted by total earnings
+    private var appNames: [String] {
+        var totals: [String: Double] = [:]
+        for country in service.countryStats {
+            for app in country.appBreakdown {
+                totals[app.appName, default: 0] += app.earnings
+            }
+        }
+        return totals.sorted { $0.value > $1.value }.map { $0.key }
+    }
+
+    /// Countries filtered by the selected app (or all if nil)
+    private var filteredCountries: [AdMobCountryStats] {
+        guard let app = selectedApp else { return service.countryStats }
+        return service.countryStats.compactMap { country in
+            guard let entry = country.appBreakdown.first(where: { $0.appName == app }) else { return nil }
+            // Return a version of the country with only the selected app's numbers for bubble sizing
+            return AdMobCountryStats(
+                countryCode: country.countryCode,
+                countryName: country.countryName,
+                earnings: entry.earnings,
+                impressions: entry.impressions,
+                appBreakdown: [entry]
+            )
+        }.sorted { $0.earnings > $1.earnings }
+    }
 
     var body: some View {
         NavigationStack {
@@ -24,15 +52,7 @@ struct AdMobMapView: View {
                         description: Text("No AdMob country earnings found.")
                     )
                 } else {
-                    ZStack(alignment: .bottom) {
-                        map
-                        if let s = selected {
-                            CountryRevenueBanner(item: s) { selected = nil }
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
-                                .padding(.bottom, 8)
-                        }
-                    }
-                    .ignoresSafeArea(edges: .bottom)
+                    mapWithOverlays
                 }
             }
             .navigationTitle("Revenue Map")
@@ -47,12 +67,17 @@ struct AdMobMapView: View {
         }
     }
 
-    private var map: some View {
-        let maxEarnings = service.countryStats.first?.earnings ?? 1
+    // MARK: - Map + overlays
+
+    private var mapWithOverlays: some View {
+        let countries = filteredCountries
+        let maxEarnings = countries.first?.earnings ?? 1
+
         return Map(position: $cameraPosition) {
-            ForEach(service.countryStats) { item in
+            ForEach(countries) { item in
                 if let coord = item.coordinate {
-                    Annotation(item.countryCode, coordinate: CLLocationCoordinate2D(latitude: coord.lat, longitude: coord.lng)) {
+                    Annotation(item.countryCode,
+                               coordinate: CLLocationCoordinate2D(latitude: coord.lat, longitude: coord.lng)) {
                         RevenueBubble(
                             earnings: item.earnings,
                             maxEarnings: maxEarnings,
@@ -66,10 +91,59 @@ struct AdMobMapView: View {
             }
         }
         .mapStyle(.standard(elevation: .realistic))
-        .mapControls {
-            MapCompass()
-            MapScaleView()
+        .mapControls { MapCompass(); MapScaleView() }
+        .ignoresSafeArea(edges: .bottom)
+        // App filter chips — pinned to top of map
+        .safeAreaInset(edge: .top, spacing: 0) {
+            appFilterChips
         }
+        // Banner — sits above the tab bar (respects safe area bottom)
+        .overlay(alignment: .bottom) {
+            if let s = selected {
+                CountryRevenueBanner(item: s) { selected = nil }
+                    .padding(.bottom, 8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.3), value: selected?.id)
+        .onChange(of: selectedApp) { _, _ in
+            selected = nil
+            withAnimation { cameraPosition = .automatic }
+        }
+    }
+
+    // MARK: - Filter chips
+
+    private var appFilterChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                chip(label: "All Apps", isSelected: selectedApp == nil) {
+                    selectedApp = nil
+                }
+                ForEach(appNames, id: \.self) { name in
+                    chip(label: name, isSelected: selectedApp == name) {
+                        selectedApp = (selectedApp == name) ? nil : name
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+        }
+        .background(.ultraThinMaterial)
+    }
+
+    private func chip(label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.caption.weight(isSelected ? .semibold : .regular))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(
+                    Capsule().fill(isSelected ? Color.green : Color(.systemFill))
+                )
+                .foregroundStyle(isSelected ? .white : .primary)
+        }
+        .buttonStyle(.plain)
     }
 }
 
