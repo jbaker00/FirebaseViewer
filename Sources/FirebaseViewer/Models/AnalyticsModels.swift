@@ -122,3 +122,15 @@ struct AdMobAppStats: Identifiable {
     let earnings: Double
     let impressions: Int
 }
+
+struct AdMobCountryStats: Identifiable {
+    let id = UUID()
+    let countryCode: String   // ISO 3166-1 alpha-2 e.g. "US"
+    let countryName: String   // display name for lookup in CountryCoordinates
+    let earnings: Double
+    let impressions: Int
+
+    var coordinate: (lat: Double, lng: Double)? {
+        CountryCoordinates.coordinate(for: countryName)
+    }
+}

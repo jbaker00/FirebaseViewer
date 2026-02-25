@@ -16,7 +16,11 @@ struct ContentView: View {
                 }
             MapView()
                 .tabItem {
-                    Label("User Map", systemImage: "map.fill")
+                    Label("User Map", systemImage: "person.3.fill")
+                }
+            AdMobMapView()
+                .tabItem {
+                    Label("Revenue Map", systemImage: "dollarsign.circle.fill")
                 }
             AppVersionsView()
                 .tabItem {

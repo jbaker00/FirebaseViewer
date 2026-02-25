@@ -11,6 +11,7 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
     @Published var appStats: [AdMobAppStats] = []         // 30-day per-app
     @Published var todayEarnings: Double = 0
     @Published var todayAppStats: [AdMobAppStats] = []    // today per-app
+    @Published var countryStats: [AdMobCountryStats] = [] // all-time per-country
     @Published var isLoading = false
     @Published var hasData = false   // true once first successful load completes
     @Published var error: String?
@@ -88,6 +89,7 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
         appStats = []
         todayAppStats = []
         todayEarnings = 0
+        countryStats = []
         hasData = false
     }
 
@@ -103,15 +105,18 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
                 self.error = "No AdMob account found"
                 return
             }
-            async let thirtyDayTask = fetchEarnings(publisherID: publisherID, token: token, daysBack: 30)
-            async let todayTask     = fetchEarnings(publisherID: publisherID, token: token, daysBack: 0)
-            let ((totalStats, perApp), (todayStats, todayPerApp)) = try await (thirtyDayTask, todayTask)
+            async let thirtyDayTask  = fetchEarnings(publisherID: publisherID, token: token, daysBack: 30)
+            async let todayTask      = fetchEarnings(publisherID: publisherID, token: token, daysBack: 0)
+            async let countryTask    = fetchCountryEarnings(publisherID: publisherID, token: token)
+            let ((totalStats, perApp), (todayStats, todayPerApp), countries) = try await (thirtyDayTask, todayTask, countryTask)
             self.stats = totalStats
             self.appStats = perApp
             self.todayEarnings = todayStats.totalEarnings
             self.todayAppStats = todayPerApp
+            self.countryStats = countries.sorted { $0.earnings > $1.earnings }
             self.hasData = true
             AppLogger.log("AdMob today earnings: $\(String(format: "%.4f", todayStats.totalEarnings))", tag: "AdMob")
+            AppLogger.log("AdMob country stats: \(countries.count) countries", tag: "AdMob")
         } catch {
             self.error = error.localizedDescription
             AppLogger.error("AdMob loadStats: \(error.localizedDescription)", tag: "AdMob")
@@ -305,6 +310,59 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
         if let s = field["integerValue"] as? String,  let v = Int(s)      { return v }
         if let n = field["integerValue"] as? NSNumber                       { return n.intValue }
         return 0
+    }
+
+    // MARK: - Country earnings (all time: 2015-01-01 → today)
+
+    private func fetchCountryEarnings(publisherID: String, token: String) async throws -> [AdMobCountryStats] {
+        let today = Date()
+        let cal = Calendar(identifier: .gregorian)
+        let end = cal.dateComponents([.year, .month, .day], from: today)
+
+        let url = URL(string: "https://admob.googleapis.com/v1/\(publisherID)/networkReport:generate")!
+        var req = admobRequest(url: url, token: token)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = [
+            "reportSpec": [
+                "dateRange": [
+                    "startDate": ["year": 2015, "month": 1, "day": 1],
+                    "endDate":   ["year": end.year!, "month": end.month!, "day": end.day!]
+                ],
+                "dimensions": ["COUNTRY"],
+                "metrics": ["ESTIMATED_EARNINGS", "IMPRESSIONS"],
+                "localizationSettings": ["currencyCode": "USD"]
+            ]
+        ]
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            AppLogger.error("AdMob country report error: \(body)", tag: "AdMob")
+            return []
+        }
+
+        guard let objects = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
+
+        // Map ISO country codes → full names for coordinate lookup
+        let isoToName = CountryCoordinates.isoCodeTable
+
+        var result: [AdMobCountryStats] = []
+        for obj in objects {
+            guard let row = obj["row"] as? [String: Any],
+                  let dims = row["dimensionValues"] as? [String: Any],
+                  let metrics = row["metricValues"] as? [String: Any] else { continue }
+
+            let countryCode = (dims["COUNTRY"] as? [String: Any])?["value"] as? String ?? "ZZ"
+            let countryName = isoToName[countryCode] ?? countryCode
+            let earnings    = microsDollar(from: metrics, key: "ESTIMATED_EARNINGS")
+            let impressions = intValue(from: metrics, key: "IMPRESSIONS")
+            result.append(AdMobCountryStats(countryCode: countryCode, countryName: countryName,
+                                            earnings: earnings, impressions: impressions))
+        }
+        return result
     }
 }
 
