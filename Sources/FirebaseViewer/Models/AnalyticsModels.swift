@@ -129,6 +129,14 @@ struct AdMobCountryStats: Identifiable {
     let countryName: String   // display name for lookup in CountryCoordinates
     let earnings: Double
     let impressions: Int
+    let appBreakdown: [AppEntry]  // per-app within this country
+
+    struct AppEntry: Identifiable {
+        let id = UUID()
+        let appName: String
+        let earnings: Double
+        let impressions: Int
+    }
 
     var coordinate: (lat: Double, lng: Double)? {
         CountryCoordinates.coordinate(for: countryName)

@@ -312,7 +312,7 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
         return 0
     }
 
-    // MARK: - Country earnings (all time: 2015-01-01 → today)
+    // MARK: - Country earnings (all time: 2015-01-01 → today, broken down by app)
 
     private func fetchCountryEarnings(publisherID: String, token: String) async throws -> [AdMobCountryStats] {
         let today = Date()
@@ -330,7 +330,7 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
                     "startDate": ["year": 2015, "month": 1, "day": 1],
                     "endDate":   ["year": end.year!, "month": end.month!, "day": end.day!]
                 ],
-                "dimensions": ["COUNTRY"],
+                "dimensions": ["COUNTRY", "APP"],
                 "metrics": ["ESTIMATED_EARNINGS", "IMPRESSIONS"],
                 "localizationSettings": ["currencyCode": "USD"]
             ]
@@ -346,22 +346,38 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
 
         guard let objects = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
 
-        // Map ISO country codes → full names for coordinate lookup
         let isoToName = CountryCoordinates.isoCodeTable
 
-        var result: [AdMobCountryStats] = []
+        // Group rows by country code
+        struct RawRow { let appName: String; let earnings: Double; let impressions: Int }
+        var grouped: [String: [RawRow]] = [:]
+
         for obj in objects {
             guard let row = obj["row"] as? [String: Any],
                   let dims = row["dimensionValues"] as? [String: Any],
                   let metrics = row["metricValues"] as? [String: Any] else { continue }
 
             let countryCode = (dims["COUNTRY"] as? [String: Any])?["value"] as? String ?? "ZZ"
-            let countryName = isoToName[countryCode] ?? countryCode
+            let appName     = (dims["APP"] as? [String: Any])?["displayLabel"] as? String ?? "Unknown"
             let earnings    = microsDollar(from: metrics, key: "ESTIMATED_EARNINGS")
             let impressions = intValue(from: metrics, key: "IMPRESSIONS")
-            result.append(AdMobCountryStats(countryCode: countryCode, countryName: countryName,
-                                            earnings: earnings, impressions: impressions))
+
+            grouped[countryCode, default: []].append(RawRow(appName: appName, earnings: earnings, impressions: impressions))
         }
+
+        var result: [AdMobCountryStats] = []
+        for (code, rows) in grouped {
+            let name        = isoToName[code] ?? code
+            let total       = rows.reduce(0) { $0 + $1.earnings }
+            let totalImp    = rows.reduce(0) { $0 + $1.impressions }
+            let breakdown   = rows
+                .sorted { $0.earnings > $1.earnings }
+                .map { AdMobCountryStats.AppEntry(appName: $0.appName, earnings: $0.earnings, impressions: $0.impressions) }
+            result.append(AdMobCountryStats(countryCode: code, countryName: name,
+                                            earnings: total, impressions: totalImp,
+                                            appBreakdown: breakdown))
+        }
+        AppLogger.log("AdMob country map: \(result.count) countries", tag: "AdMob")
         return result
     }
 }

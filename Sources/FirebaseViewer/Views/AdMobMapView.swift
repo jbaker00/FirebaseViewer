@@ -120,22 +120,57 @@ private struct CountryRevenueBanner: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.countryName)
-                    .font(.headline)
-                Text("\(item.impressions.formatted()) impressions · all time")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 10) {
+            // Header row
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.countryName)
+                        .font(.headline)
+                    Text("\(item.impressions.formatted()) impressions · all time")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text(String(format: "$%.2f", item.earnings))
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .foregroundStyle(.green)
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                        .font(.title3)
+                }
             }
-            Spacer()
-            Text(String(format: "$%.2f", item.earnings))
-                .font(.system(size: 28, weight: .bold, design: .rounded))
-                .foregroundStyle(.green)
-            Button(action: onDismiss) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.secondary)
-                    .font(.title3)
+
+            // Per-app breakdown
+            if item.appBreakdown.count > 1 {
+                Divider()
+                ForEach(item.appBreakdown) { app in
+                    HStack {
+                        Text(app.appName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        Spacer()
+                        Text("\(app.impressions) imp")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                        Text(String(format: "$%.4f", app.earnings))
+                            .font(.caption.bold())
+                            .foregroundStyle(.green)
+                    }
+                }
+            } else if let only = item.appBreakdown.first {
+                // Single app — show name inline
+                Divider()
+                HStack {
+                    Image(systemName: "iphone")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(only.appName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
             }
         }
         .padding()
