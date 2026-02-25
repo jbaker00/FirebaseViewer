@@ -29,6 +29,10 @@ struct ContentView: View {
                     .tabItem {
                         Label("AdMob", systemImage: "dollarsign.circle.fill")
                     }
+                LogView()
+                    .tabItem {
+                        Label("Logs", systemImage: "scroll.fill")
+                    }
             }
         }
         .environmentObject(analytics)

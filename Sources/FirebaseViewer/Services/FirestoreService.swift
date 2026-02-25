@@ -50,9 +50,11 @@ struct FirestoreService {
         let (data, resp) = try await URLSession.shared.data(for: req)
         if let http = resp as? HTTPURLResponse, http.statusCode != 200 {
             let body = String(data: data, encoding: .utf8) ?? ""
+            AppLogger.error("Firestore listCollections HTTP \(http.statusCode): \(body)", tag: "Firestore")
             throw NSError(domain: "Firestore", code: http.statusCode,
                           userInfo: [NSLocalizedDescriptionKey: "HTTP \(http.statusCode): \(body)"])
         }
+        AppLogger.log("Firestore listCollections OK", tag: "Firestore")
         struct Response: Decodable { let collectionIds: [String]? }
         return (try JSONDecoder().decode(Response.self, from: data)).collectionIds ?? []
     }

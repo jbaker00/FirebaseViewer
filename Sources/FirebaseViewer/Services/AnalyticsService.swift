@@ -188,9 +188,11 @@ final class AnalyticsService: ObservableObject {
 
         if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
             let body = String(data: data, encoding: .utf8) ?? "no body"
+            AppLogger.error("GA4 HTTP \(httpResponse.statusCode): \(body)", tag: "GA4")
             throw NSError(domain: "GA4API", code: httpResponse.statusCode,
                           userInfo: [NSLocalizedDescriptionKey: "HTTP \(httpResponse.statusCode): \(body)"])
         }
+        AppLogger.log("GA4 runReport OK (property: \(propertyID))", tag: "GA4")
 
         return try JSONDecoder().decode(RunReportResponse.self, from: data)
     }

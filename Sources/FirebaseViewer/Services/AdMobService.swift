@@ -45,6 +45,7 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
         guard let authURL = URL(string: authURLString) else { return }
 
         do {
+            AppLogger.log("Starting AdMob OAuth flow", tag: "AdMob")
             let result = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<URL, Error>) in
                 let session = ASWebAuthenticationSession(url: authURL,
                                                          callbackURLScheme: redirectScheme) { url, err in
@@ -61,13 +62,17 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
             guard let components = URLComponents(url: result, resolvingAgainstBaseURL: false),
                   let code = components.queryItems?.first(where: { $0.name == "code" })?.value else {
                 error = "No authorization code in callback"
+                AppLogger.error("No auth code in OAuth callback: \(result)", tag: "AdMob")
                 return
             }
+            AppLogger.log("Got OAuth code, exchanging for token", tag: "AdMob")
             try await exchangeCodeForToken(code: code)
             isAuthorized = true
+            AppLogger.log("AdMob authorized successfully", tag: "AdMob")
             await loadStats()
         } catch {
             self.error = error.localizedDescription
+            AppLogger.error("AdMob sign-in failed: \(error.localizedDescription)", tag: "AdMob")
         }
     }
 
@@ -158,14 +163,26 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
         return resp.access_token
     }
 
-    private func fetchAccounts(token: String) async throws -> [String] {
-        let url = URL(string: "https://admob.googleapis.com/v1/accounts")!
+    // The user's GCP project where AdMob API is enabled
+    private let quotaProject = "globalvibes-1a6aa"
+
+    private func admobRequest(url: URL, token: String) -> URLRequest {
         var req = URLRequest(url: url)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue(quotaProject, forHTTPHeaderField: "x-goog-user-project")
+        return req
+    }
+
+    private func fetchAccounts(token: String) async throws -> [String] {
+        let url = URL(string: "https://admob.googleapis.com/v1/accounts")!
+        var req = admobRequest(url: url, token: token)
         let (data, resp) = try await URLSession.shared.data(for: req)
+        AppLogger.log("AdMob accounts response: HTTP \((resp as? HTTPURLResponse)?.statusCode ?? 0)")
         if let http = resp as? HTTPURLResponse, http.statusCode != 200 {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            AppLogger.log("AdMob accounts error: \(body)")
             throw NSError(domain: "AdMob", code: http.statusCode,
-                          userInfo: [NSLocalizedDescriptionKey: String(data: data, encoding: .utf8) ?? ""])
+                          userInfo: [NSLocalizedDescriptionKey: body])
         }
         struct AccountsResp: Decodable {
             struct Account: Decodable { let name: String; let publisherId: String }
@@ -179,9 +196,8 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
         let today = ISO8601DateFormatter().string(from: Date()).prefix(10)
         let thirtyDaysAgo = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-30*24*3600)).prefix(10)
         let url = URL(string: "https://admob.googleapis.com/v1/\(publisherID)/networkReport:generate")!
-        var req = URLRequest(url: url)
+        var req = admobRequest(url: url, token: token)
         req.httpMethod = "POST"
-        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let body: [String: Any] = [
@@ -198,9 +214,12 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, httpResp) = try await URLSession.shared.data(for: req)
+        AppLogger.log("AdMob earnings response: HTTP \((httpResp as? HTTPURLResponse)?.statusCode ?? 0)")
         if let http = httpResp as? HTTPURLResponse, http.statusCode != 200 {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            AppLogger.log("AdMob earnings error: \(body)")
             throw NSError(domain: "AdMob", code: http.statusCode,
-                          userInfo: [NSLocalizedDescriptionKey: String(data: data, encoding: .utf8) ?? ""])
+                          userInfo: [NSLocalizedDescriptionKey: body])
         }
 
         // Response is newline-delimited JSON (streaming)
