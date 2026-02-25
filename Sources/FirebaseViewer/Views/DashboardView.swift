@@ -33,6 +33,24 @@ struct DashboardView: View {
         }
     }
 
+    // MARK: - Computed AdMob values filtered by selected project
+
+    /// Today's earnings for the current project (or total if "All Apps")
+    private var filteredTodayEarnings: Double {
+        guard let name = analytics.selectedProject.admobAppName else {
+            return admob.todayEarnings  // All Apps: use total
+        }
+        return admob.todayAppStats.first(where: { $0.appName == name })?.earnings ?? 0
+    }
+
+    /// 30-day earnings for the current project (or total if "All Apps")
+    private var filtered30dEarnings: Double {
+        guard let name = analytics.selectedProject.admobAppName else {
+            return admob.stats.totalEarnings  // All Apps: use total
+        }
+        return admob.appStats.first(where: { $0.appName == name })?.earnings ?? 0
+    }
+
     // MARK: - Subviews
 
     private var contentView: some View {
@@ -51,17 +69,17 @@ struct DashboardView: View {
         HStack(spacing: 12) {
             revenueCard(
                 label: "Today's Revenue",
-                amount: admob.todayEarnings,
+                amount: filteredTodayEarnings,
                 decimals: 4,
                 icon: "dollarsign.circle.fill",
-                loading: admob.isLoading
+                loading: !admob.hasData && admob.isLoading
             )
             revenueCard(
                 label: "30-Day Revenue",
-                amount: admob.stats.totalEarnings,
+                amount: filtered30dEarnings,
                 decimals: 2,
                 icon: "calendar",
-                loading: admob.isLoading
+                loading: !admob.hasData && admob.isLoading
             )
         }
         .padding(.horizontal)

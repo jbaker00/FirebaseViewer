@@ -8,9 +8,11 @@ import SwiftUI
 final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresentationContextProviding {
 
     @Published var stats = AdMobStats()
-    @Published var appStats: [AdMobAppStats] = []
+    @Published var appStats: [AdMobAppStats] = []         // 30-day per-app
     @Published var todayEarnings: Double = 0
+    @Published var todayAppStats: [AdMobAppStats] = []    // today per-app
     @Published var isLoading = false
+    @Published var hasData = false   // true once first successful load completes
     @Published var error: String?
     @Published var isAuthorized = false
 
@@ -84,10 +86,13 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
         tokenExpiry = .distantPast
         stats = AdMobStats()
         appStats = []
+        todayAppStats = []
+        todayEarnings = 0
+        hasData = false
     }
 
     func loadStats() async {
-        guard isAuthorized else { return }
+        guard isAuthorized, !isLoading else { return }
         isLoading = true
         error = nil
         defer { isLoading = false }
@@ -100,10 +105,12 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
             }
             async let thirtyDayTask = fetchEarnings(publisherID: publisherID, token: token, daysBack: 30)
             async let todayTask     = fetchEarnings(publisherID: publisherID, token: token, daysBack: 0)
-            let ((totalStats, perApp), (todayStats, _)) = try await (thirtyDayTask, todayTask)
+            let ((totalStats, perApp), (todayStats, todayPerApp)) = try await (thirtyDayTask, todayTask)
             self.stats = totalStats
             self.appStats = perApp
             self.todayEarnings = todayStats.totalEarnings
+            self.todayAppStats = todayPerApp
+            self.hasData = true
             AppLogger.log("AdMob today earnings: $\(String(format: "%.4f", todayStats.totalEarnings))", tag: "AdMob")
         } catch {
             self.error = error.localizedDescription

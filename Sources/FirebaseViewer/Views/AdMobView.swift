@@ -23,9 +23,6 @@ struct AdMobView: View {
             .refreshable {
                 if service.isAuthorized { await service.loadStats() }
             }
-            .task {
-                if service.isAuthorized { await service.loadStats() }
-            }
         }
     }
 
@@ -73,51 +70,89 @@ struct AdMobView: View {
 
     private var statsView: some View {
         ScrollView {
-            LazyVStack(spacing: 16) {
-                // Summary cards
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                    statCard(
-                        value: String(format: "$%.2f", service.stats.totalEarnings),
-                        label: "30-Day Revenue",
-                        icon: "dollarsign.circle.fill",
-                        color: .green
-                    )
-                    statCard(
-                        value: formatNumber(service.stats.impressions),
-                        label: "Impressions",
-                        icon: "eye.fill",
-                        color: .blue
-                    )
-                    statCard(
-                        value: formatNumber(service.stats.clicks),
-                        label: "Clicks",
-                        icon: "cursorarrow.click.2",
-                        color: .orange
-                    )
-                    statCard(
-                        value: String(format: "$%.2f", service.stats.ecpm),
-                        label: "eCPM",
-                        icon: "chart.bar.fill",
-                        color: .purple
-                    )
-                }
-                .padding(.horizontal)
-                .padding(.top)
+            LazyVStack(spacing: 20) {
+                // Today section
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("Today", systemImage: "sun.max.fill")
+                        .font(.headline)
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal)
 
-                // Per-app breakdown
-                if !service.appStats.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("By App")
-                            .font(.headline)
-                            .padding(.horizontal)
-                        ForEach(service.appStats) { app in
-                            appRow(app)
-                        }
+                    HStack(spacing: 12) {
+                        statCard(
+                            value: String(format: "$%.4f", service.todayEarnings),
+                            label: "Revenue",
+                            icon: "dollarsign.circle.fill",
+                            color: .green
+                        )
+                        statCard(
+                            value: formatNumber(service.todayAppStats.reduce(0) { $0 + $1.impressions }),
+                            label: "Impressions",
+                            icon: "eye.fill",
+                            color: .blue
+                        )
                     }
                     .padding(.horizontal)
+
+                    if !service.todayAppStats.isEmpty {
+                        ForEach(service.todayAppStats) { app in
+                            appRow(app, decimals: 4)
+                        }
+                        .padding(.horizontal)
+                    }
+                }
+                .padding(.top)
+
+                Divider().padding(.horizontal)
+
+                // 30-day section
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("Last 30 Days", systemImage: "calendar")
+                        .font(.headline)
+                        .padding(.horizontal)
+
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                        statCard(
+                            value: String(format: "$%.2f", service.stats.totalEarnings),
+                            label: "Revenue",
+                            icon: "dollarsign.circle.fill",
+                            color: .green
+                        )
+                        statCard(
+                            value: formatNumber(service.stats.impressions),
+                            label: "Impressions",
+                            icon: "eye.fill",
+                            color: .blue
+                        )
+                        statCard(
+                            value: formatNumber(service.stats.clicks),
+                            label: "Clicks",
+                            icon: "cursorarrow.click.2",
+                            color: .orange
+                        )
+                        statCard(
+                            value: String(format: "$%.2f", service.stats.ecpm),
+                            label: "eCPM",
+                            icon: "chart.bar.fill",
+                            color: .purple
+                        )
+                    }
+                    .padding(.horizontal)
+
+                    if !service.appStats.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("By App")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal)
+                            ForEach(service.appStats) { app in
+                                appRow(app, decimals: 2)
+                            }
+                            .padding(.horizontal)
+                        }
+                    }
                 }
 
-                // Sign out
                 Button("Disconnect AdMob", role: .destructive) {
                     service.signOut()
                 }
@@ -144,7 +179,7 @@ struct AdMobView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    private func appRow(_ app: AdMobAppStats) -> some View {
+    private func appRow(_ app: AdMobAppStats, decimals: Int = 2) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text(app.appName)
@@ -154,7 +189,7 @@ struct AdMobView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Text(String(format: "$%.2f", app.earnings))
+            Text(String(format: "$%.\(decimals)f", app.earnings))
                 .font(.headline)
                 .foregroundStyle(.green)
         }

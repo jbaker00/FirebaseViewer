@@ -10,6 +10,8 @@ struct FirebaseProject: Identifiable, Equatable {
     let streamIDs: [String]?
     /// Firebase/GCP project ID for Firestore access, or nil.
     let firestoreProjectID: String?
+    /// The app name as it appears in AdMob (displayLabel). nil = no AdMob for this app.
+    let admobAppName: String?
     let icon: String
     let tintColor: ProjectColor
 
@@ -37,6 +39,7 @@ struct FirebaseProject: Identifiable, Equatable {
             ga4PropertyID: "525369771",
             streamIDs: nil,
             firestoreProjectID: nil,
+            admobAppName: nil,          // nil = show totals across all apps
             icon: "square.grid.2x2.fill",
             tintColor: .orange
         ),
@@ -46,6 +49,7 @@ struct FirebaseProject: Identifiable, Equatable {
             ga4PropertyID: "525369771",
             streamIDs: ["13644174285", "13643159972", "13643192970"],
             firestoreProjectID: nil,
+            admobAppName: "Maui Trolly",
             icon: "tram.fill",
             tintColor: .blue
         ),
@@ -55,6 +59,7 @@ struct FirebaseProject: Identifiable, Equatable {
             ga4PropertyID: "525369771",
             streamIDs: ["13651179226"],
             firestoreProjectID: nil,
+            admobAppName: "CreoleTranslator",
             icon: "character.bubble.fill",
             tintColor: .purple
         ),
@@ -64,6 +69,7 @@ struct FirebaseProject: Identifiable, Equatable {
             ga4PropertyID: "525769038",
             streamIDs: nil,
             firestoreProjectID: "resortviewer",
+            admobAppName: nil,          // no AdMob ads
             icon: "beach.umbrella.fill",
             tintColor: .green
         ),
@@ -73,6 +79,7 @@ struct FirebaseProject: Identifiable, Equatable {
             ga4PropertyID: nil,
             streamIDs: nil,
             firestoreProjectID: nil,
+            admobAppName: "Suburban NJ - NYC Scheduler",
             icon: "bus.fill",
             tintColor: .red
         ),
