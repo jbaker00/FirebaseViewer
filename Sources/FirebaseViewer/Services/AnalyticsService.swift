@@ -7,11 +7,12 @@ final class AnalyticsService: ObservableObject {
     @Published var stats = DashboardStats()
     @Published var countryData: [CountryUserCount] = []
     @Published var appVersionStats: [AppVersionStats] = []
+    @Published var firestoreStats: [FirestoreCollectionStats] = []
     @Published var isLoading = false
     @Published var error: String?
 
-    private var cachedToken: String?
-    private var tokenExpiry: Date = .distantPast
+    // Separate cache per property (525369771 vs 525769038)
+    private var tokenCache: [String: (token: String, expiry: Date)] = [:]
 
     // MARK: - Public
 
@@ -21,6 +22,7 @@ final class AnalyticsService: ObservableObject {
         stats = DashboardStats()
         countryData = []
         appVersionStats = []
+        firestoreStats = []
         error = nil
         await loadAll()
     }
@@ -31,32 +33,55 @@ final class AnalyticsService: ObservableObject {
         error = nil
         defer { isLoading = false }
 
-        let propertyID = selectedProject.ga4PropertyID
-        let streamFilter = selectedProject.streamIDs.map { RunReportRequest.streamFilter(ids: $0) }
-
-        do {
-            let token = try await getToken()
-            async let statsTask   = fetchStats(token: token, propertyID: propertyID, filter: streamFilter)
-            async let countryTask = fetchCountryData(token: token, propertyID: propertyID, filter: streamFilter)
-            async let versionTask = fetchAppVersionData(token: token, propertyID: propertyID, filter: streamFilter)
-            let (newStats, countries, versions) = try await (statsTask, countryTask, versionTask)
-            self.stats = newStats
-            self.countryData = countries
-            self.appVersionStats = versions
-        } catch {
-            self.error = error.localizedDescription
+        // Firestore fetch (ResortViewer only)
+        if let firestoreProjectID = selectedProject.firestoreProjectID {
+            async let fsTask = FirestoreService.fetchCollectionStats(projectID: firestoreProjectID)
+            // GA4 analytics fetch
+            if let propertyID = selectedProject.ga4PropertyID {
+                let streamFilter = selectedProject.streamIDs.map { RunReportRequest.streamFilter(ids: $0) }
+                do {
+                    let token = try await getToken(forProperty: propertyID)
+                    async let statsTask   = fetchStats(token: token, propertyID: propertyID, filter: streamFilter)
+                    async let countryTask = fetchCountryData(token: token, propertyID: propertyID, filter: streamFilter)
+                    async let versionTask = fetchAppVersionData(token: token, propertyID: propertyID, filter: streamFilter)
+                    let (newStats, countries, versions, fs) = try await (statsTask, countryTask, versionTask, fsTask)
+                    self.stats = newStats
+                    self.countryData = countries
+                    self.appVersionStats = versions
+                    self.firestoreStats = fs
+                } catch {
+                    self.error = error.localizedDescription
+                    if let fs = try? await fsTask { self.firestoreStats = fs }
+                }
+            } else {
+                if let fs = try? await fsTask { self.firestoreStats = fs }
+            }
+        } else if let propertyID = selectedProject.ga4PropertyID {
+            let streamFilter = selectedProject.streamIDs.map { RunReportRequest.streamFilter(ids: $0) }
+            do {
+                let token = try await getToken(forProperty: propertyID)
+                async let statsTask   = fetchStats(token: token, propertyID: propertyID, filter: streamFilter)
+                async let countryTask = fetchCountryData(token: token, propertyID: propertyID, filter: streamFilter)
+                async let versionTask = fetchAppVersionData(token: token, propertyID: propertyID, filter: streamFilter)
+                let (newStats, countries, versions) = try await (statsTask, countryTask, versionTask)
+                self.stats = newStats
+                self.countryData = countries
+                self.appVersionStats = versions
+            } catch {
+                self.error = error.localizedDescription
+            }
         }
+        // NJBusScheduler: no GA4, no Firestore — stats stay empty
     }
 
     // MARK: - Auth
 
-    private func getToken() async throws -> String {
-        if let token = cachedToken, Date() < tokenExpiry {
-            return token
+    private func getToken(forProperty propertyID: String) async throws -> String {
+        if let cached = tokenCache[propertyID], Date() < cached.expiry {
+            return cached.token
         }
         let token = try await JWTService.accessToken()
-        cachedToken = token
-        tokenExpiry = Date().addingTimeInterval(3500)
+        tokenCache[propertyID] = (token, Date().addingTimeInterval(3500))
         return token
     }
 

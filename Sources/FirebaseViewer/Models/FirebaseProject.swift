@@ -1,18 +1,33 @@
 import Foundation
+import SwiftUI
 
 struct FirebaseProject: Identifiable, Equatable {
     let id: String
     let name: String
-    let ga4PropertyID: String
+    /// GA4 property ID, or nil if no analytics.
+    let ga4PropertyID: String?
     /// One or more stream IDs to filter by. nil = all streams (no filter).
     let streamIDs: [String]?
+    /// Firebase/GCP project ID for Firestore access, or nil.
+    let firestoreProjectID: String?
     let icon: String
     let tintColor: ProjectColor
 
-    enum ProjectColor: String {
-        case orange, blue, purple
+    var hasAnalytics: Bool { ga4PropertyID != nil }
+    var hasFirestore: Bool { firestoreProjectID != nil }
 
-        var swiftUIName: String { rawValue }
+    enum ProjectColor: String {
+        case orange, blue, purple, green, red
+
+        var color: Color {
+            switch self {
+            case .orange: return .orange
+            case .blue:   return .blue
+            case .purple: return .purple
+            case .green:  return .green
+            case .red:    return .red
+            }
+        }
     }
 
     static let all: [FirebaseProject] = [
@@ -21,6 +36,7 @@ struct FirebaseProject: Identifiable, Equatable {
             name: "All Apps",
             ga4PropertyID: "525369771",
             streamIDs: nil,
+            firestoreProjectID: nil,
             icon: "square.grid.2x2.fill",
             tintColor: .orange
         ),
@@ -28,8 +44,8 @@ struct FirebaseProject: Identifiable, Equatable {
             id: "mauiTrolly",
             name: "Maui Trolly",
             ga4PropertyID: "525369771",
-            // All three MauiTrolly stream registrations
             streamIDs: ["13644174285", "13643159972", "13643192970"],
+            firestoreProjectID: nil,
             icon: "tram.fill",
             tintColor: .blue
         ),
@@ -38,8 +54,27 @@ struct FirebaseProject: Identifiable, Equatable {
             name: "Creole Translator",
             ga4PropertyID: "525369771",
             streamIDs: ["13651179226"],
+            firestoreProjectID: nil,
             icon: "character.bubble.fill",
             tintColor: .purple
+        ),
+        FirebaseProject(
+            id: "resortBrowser",
+            name: "Resort Browser",
+            ga4PropertyID: "525769038",
+            streamIDs: nil,
+            firestoreProjectID: "resortviewer",
+            icon: "beach.umbrella.fill",
+            tintColor: .green
+        ),
+        FirebaseProject(
+            id: "njBusScheduler",
+            name: "NJ Bus Scheduler",
+            ga4PropertyID: nil,
+            streamIDs: nil,
+            firestoreProjectID: nil,
+            icon: "bus.fill",
+            tintColor: .red
         ),
     ]
 }

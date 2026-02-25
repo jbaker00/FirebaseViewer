@@ -98,3 +98,27 @@ struct CountryUserCount: Identifiable {
     let userCount: Int
     let coordinate: (lat: Double, lng: Double)?
 }
+
+// MARK: - Firestore models
+
+struct FirestoreCollectionStats: Identifiable {
+    let id = UUID()
+    let name: String
+    let documentCount: Int
+}
+
+// MARK: - AdMob models
+
+struct AdMobStats {
+    var totalEarnings: Double = 0
+    var impressions: Int = 0
+    var clicks: Int = 0
+    var ecpm: Double = 0
+}
+
+struct AdMobAppStats: Identifiable {
+    let id = UUID()
+    let appName: String
+    let earnings: Double
+    let impressions: Int
+}

@@ -8,6 +8,8 @@ struct DashboardView: View {
             ScrollView {
                 if analytics.isLoading && analytics.countryData.isEmpty {
                     loadingView
+                } else if !analytics.selectedProject.hasAnalytics {
+                    noAnalyticsView
                 } else if let err = analytics.error {
                     errorView(message: err)
                 } else {
@@ -140,6 +142,15 @@ struct DashboardView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 80)
+    }
+
+    private var noAnalyticsView: some View {
+        ContentUnavailableView(
+            "No Analytics Linked",
+            systemImage: "chart.bar.xmark",
+            description: Text("NJ Bus Scheduler doesn't have Google Analytics linked.\nSelect a different app to view stats.")
+        )
+        .padding(.top, 60)
     }
 }
 

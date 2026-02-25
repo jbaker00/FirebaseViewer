@@ -15,29 +15,37 @@ struct JWTService {
         let token_uri: String
     }
 
+    /// Fetch an access token from `ServiceAccount.json` with analytics.readonly scope.
     static func accessToken() async throws -> String {
-        let key = try loadServiceAccountKey()
-        let jwt = try buildJWT(key: key)
+        try await accessToken(resource: "ServiceAccount",
+                              scope: "https://www.googleapis.com/auth/analytics.readonly")
+    }
+
+    /// Fetch an access token using an arbitrary bundled SA JSON resource and OAuth scope.
+    static func accessToken(resource: String, scope: String) async throws -> String {
+        let key = try loadServiceAccountKey(resource: resource)
+        let jwt = try buildJWT(key: key, scope: scope)
         return try await exchangeJWTForToken(jwt: jwt, tokenURI: key.token_uri)
     }
 
     // MARK: - Private
 
-    private static func loadServiceAccountKey() throws -> ServiceAccountKey {
-        guard let url = Bundle.main.url(forResource: "ServiceAccount", withExtension: "json"),
+    private static func loadServiceAccountKey(resource: String = "ServiceAccount") throws -> ServiceAccountKey {
+        guard let url = Bundle.main.url(forResource: resource, withExtension: "json"),
               let data = try? Data(contentsOf: url) else {
             throw AuthError.missingServiceAccountFile
         }
         return try JSONDecoder().decode(ServiceAccountKey.self, from: data)
     }
 
-    private static func buildJWT(key: ServiceAccountKey) throws -> String {
+    private static func buildJWT(key: ServiceAccountKey,
+                                 scope: String = "https://www.googleapis.com/auth/analytics.readonly") throws -> String {
         let now = Int(Date().timeIntervalSince1970)
 
         let headerJSON = ["alg": "RS256", "typ": "JWT"]
         let payloadJSON: [String: Any] = [
             "iss": key.client_email,
-            "scope": "https://www.googleapis.com/auth/analytics.readonly",
+            "scope": scope,
             "aud": key.token_uri,
             "iat": now,
             "exp": now + 3600

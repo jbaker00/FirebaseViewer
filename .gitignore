@@ -21,6 +21,7 @@ build/
 # Firebase secrets — never commit these
 GoogleService-Info.plist
 ServiceAccount.json
+ResortViewerServiceAccount.json
 
 # macOS
 .DS_Store

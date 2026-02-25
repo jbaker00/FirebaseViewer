@@ -21,6 +21,14 @@ struct ContentView: View {
                     .tabItem {
                         Label("Versions", systemImage: "app.badge.fill")
                     }
+                DatabaseView()
+                    .tabItem {
+                        Label("Database", systemImage: "cylinder.split.1x2")
+                    }
+                AdMobView()
+                    .tabItem {
+                        Label("AdMob", systemImage: "dollarsign.circle.fill")
+                    }
             }
         }
         .environmentObject(analytics)

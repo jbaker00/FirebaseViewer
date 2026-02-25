@@ -27,13 +27,7 @@ private struct ProjectChip: View {
     let project: FirebaseProject
     let isSelected: Bool
 
-    private var color: Color {
-        switch project.tintColor {
-        case .orange: return .orange
-        case .blue:   return .blue
-        case .purple: return .purple
-        }
-    }
+    private var color: Color { project.tintColor.color }
 
     var body: some View {
         HStack(spacing: 6) {
