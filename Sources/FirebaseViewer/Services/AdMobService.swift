@@ -229,20 +229,22 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
         AppLogger.log("AdMob earnings response: HTTP \((httpResp as? HTTPURLResponse)?.statusCode ?? 0)")
         if let http = httpResp as? HTTPURLResponse, http.statusCode != 200 {
             let body = String(data: data, encoding: .utf8) ?? ""
-            AppLogger.log("AdMob earnings error: \(body)")
+            AppLogger.error("AdMob earnings HTTP \(http.statusCode): \(body)", tag: "AdMob")
             throw NSError(domain: "AdMob", code: http.statusCode,
                           userInfo: [NSLocalizedDescriptionKey: body])
         }
 
-        // AdMob returns a JSON array: [{"header":{}}, {"row":{}}, ..., {"footer":{}}]
+        // Log full raw response so we can inspect the exact structure
         let rawBody = String(data: data, encoding: .utf8) ?? ""
-        AppLogger.log("AdMob raw response (first 500): \(String(rawBody.prefix(500)))", tag: "AdMob")
+        AppLogger.log("AdMob raw response (\(daysBack)d): \(rawBody)", tag: "AdMob")
 
         guard let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-            AppLogger.error("AdMob: failed to parse response as JSON array", tag: "AdMob")
+            AppLogger.error("AdMob: failed to parse response as JSON array. Raw: \(rawBody.prefix(300))", tag: "AdMob")
             throw NSError(domain: "AdMob", code: -1,
                           userInfo: [NSLocalizedDescriptionKey: "Unexpected response format: \(rawBody.prefix(200))"])
         }
+
+        AppLogger.log("AdMob parsed \(array.count) objects in response (daysBack=\(daysBack))", tag: "AdMob")
 
         var totalEarnings = 0.0, totalImpressions = 0, totalClicks = 0
         var perApp: [AdMobAppStats] = []
@@ -250,28 +252,52 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
         for obj in array {
             guard let row = obj["row"] as? [String: Any] else { continue }
 
-            let dims = row["dimensionValues"] as? [String: Any]
-            let metrics = row["metricValues"] as? [String: Any]
+            let dims    = row["dimensionValues"] as? [String: Any]
+            let metrics = row["metricValues"]    as? [String: Any]
             let appName = (dims?["APP"] as? [String: Any])?["displayLabel"] as? String ?? "Unknown App"
 
-            let earningsMicros = Double((metrics?["ESTIMATED_EARNINGS"] as? [String: Any])?["microsValue"] as? String ?? "0") ?? 0
-            let impressions = Int((metrics?["IMPRESSIONS"] as? [String: Any])?["integerValue"] as? String ?? "0") ?? 0
-            let clicks = Int((metrics?["CLICKS"] as? [String: Any])?["integerValue"] as? String ?? "0") ?? 0
+            // Log raw metric dict so we can see the exact field names and types
+            if let m = metrics { AppLogger.log("AdMob metrics raw: \(m)", tag: "AdMob") }
 
-            let earnings = earningsMicros / 1_000_000
-            totalEarnings += earnings
+            let earnings    = microsDollar(from: metrics, key: "ESTIMATED_EARNINGS")
+            let impressions = intValue(from: metrics, key: "IMPRESSIONS")
+            let clicks      = intValue(from: metrics, key: "CLICKS")
+
+            totalEarnings    += earnings
             totalImpressions += impressions
-            totalClicks += clicks
-            AppLogger.log("AdMob row: \(appName) earnings=\(earnings) impressions=\(impressions)", tag: "AdMob")
+            totalClicks      += clicks
+            AppLogger.log("AdMob row[\(daysBack)d]: \(appName) $\(String(format:"%.6f",earnings)) imp=\(impressions)", tag: "AdMob")
             perApp.append(AdMobAppStats(appName: appName, earnings: earnings, impressions: impressions))
         }
 
+        AppLogger.log("AdMob total[\(daysBack)d]: $\(String(format:"%.6f",totalEarnings)) imp=\(totalImpressions)", tag: "AdMob")
         var s = AdMobStats()
         s.totalEarnings = totalEarnings
-        s.impressions = totalImpressions
-        s.clicks = totalClicks
+        s.impressions   = totalImpressions
+        s.clicks        = totalClicks
         s.ecpm = totalImpressions > 0 ? (totalEarnings / Double(totalImpressions)) * 1000 : 0
         return (s, perApp.sorted { $0.earnings > $1.earnings })
+    }
+
+    /// Extract a currency amount from a metric dict. Handles microsValue (String or Number)
+    /// and doubleValue (String or Number) — AdMob varies by SDK version.
+    private func microsDollar(from metrics: [String: Any]?, key: String) -> Double {
+        guard let field = metrics?[key] as? [String: Any] else { return 0 }
+        // microsValue — proto3 encodes int64 as string, but some versions return NSNumber
+        if let s = field["microsValue"] as? String,   let v = Double(s)   { return v / 1_000_000 }
+        if let n = field["microsValue"] as? NSNumber                        { return n.doubleValue / 1_000_000 }
+        // doubleValue fallback
+        if let s = field["doubleValue"] as? String,   let v = Double(s)   { return v }
+        if let n = field["doubleValue"] as? NSNumber                        { return n.doubleValue }
+        AppLogger.error("AdMob: cannot parse \(key) from \(field)", tag: "AdMob")
+        return 0
+    }
+
+    private func intValue(from metrics: [String: Any]?, key: String) -> Int {
+        guard let field = metrics?[key] as? [String: Any] else { return 0 }
+        if let s = field["integerValue"] as? String,  let v = Int(s)      { return v }
+        if let n = field["integerValue"] as? NSNumber                       { return n.intValue }
+        return 0
     }
 }
 
