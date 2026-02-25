@@ -49,6 +49,11 @@ final class AnalyticsService: ObservableObject {
                     self.countryData = countries
                     self.appVersionStats = versions
                     self.firestoreStats = fs
+                } catch let err as NSError where err.code == 403 {
+                    // SA not yet granted access to this GA4 property
+                    AppLogger.error("GA4 403 for property \(propertyID) — grant SA viewer access in GA4 console", tag: "GA4")
+                    self.error = "Analytics pending: add firebase-viewer@globalvibes-1a6aa.iam.gserviceaccount.com as a Viewer in GA4 property \(propertyID)."
+                    if let fs = try? await fsTask { self.firestoreStats = fs }
                 } catch {
                     self.error = error.localizedDescription
                     if let fs = try? await fsTask { self.firestoreStats = fs }
@@ -67,6 +72,9 @@ final class AnalyticsService: ObservableObject {
                 self.stats = newStats
                 self.countryData = countries
                 self.appVersionStats = versions
+            } catch let err as NSError where err.code == 403 {
+                AppLogger.error("GA4 403 for property \(propertyID) — check SA permissions", tag: "GA4")
+                self.error = "Analytics pending: service account needs Viewer access to GA4 property \(propertyID)."
             } catch {
                 self.error = error.localizedDescription
             }

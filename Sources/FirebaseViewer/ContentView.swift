@@ -39,7 +39,9 @@ struct ContentView: View {
         .environmentObject(analytics)
         .environmentObject(admob)
         .task {
-            await analytics.loadAll()
+            async let analyticsLoad = analytics.loadAll()
+            async let admobLoad     = admob.loadStats()
+            _ = await (analyticsLoad, admobLoad)
         }
     }
 }
