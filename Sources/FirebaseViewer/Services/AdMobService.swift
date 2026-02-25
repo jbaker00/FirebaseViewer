@@ -222,28 +222,36 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
                           userInfo: [NSLocalizedDescriptionKey: body])
         }
 
-        // Response is newline-delimited JSON (streaming)
-        let lines = String(data: data, encoding: .utf8)?.components(separatedBy: "\n") ?? []
+        // AdMob returns a JSON array: [{"header":{}}, {"row":{}}, ..., {"footer":{}}]
+        let rawBody = String(data: data, encoding: .utf8) ?? ""
+        AppLogger.log("AdMob raw response (first 500): \(String(rawBody.prefix(500)))", tag: "AdMob")
+
+        guard let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            AppLogger.error("AdMob: failed to parse response as JSON array", tag: "AdMob")
+            throw NSError(domain: "AdMob", code: -1,
+                          userInfo: [NSLocalizedDescriptionKey: "Unexpected response format: \(rawBody.prefix(200))"])
+        }
+
         var totalEarnings = 0.0, totalImpressions = 0, totalClicks = 0
         var perApp: [AdMobAppStats] = []
 
-        for line in lines {
-            guard let lineData = line.data(using: .utf8),
-                  let obj = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
-                  let row = obj["row"] as? [String: Any] else { continue }
+        for obj in array {
+            guard let row = obj["row"] as? [String: Any] else { continue }
 
             let dims = row["dimensionValues"] as? [String: Any]
             let metrics = row["metricValues"] as? [String: Any]
             let appName = (dims?["APP"] as? [String: Any])?["displayLabel"] as? String ?? "Unknown App"
 
-            let earnings = Double((metrics?["ESTIMATED_EARNINGS"] as? [String: Any])?["microsValue"] as? String ?? "0") ?? 0
+            let earningsMicros = Double((metrics?["ESTIMATED_EARNINGS"] as? [String: Any])?["microsValue"] as? String ?? "0") ?? 0
             let impressions = Int((metrics?["IMPRESSIONS"] as? [String: Any])?["integerValue"] as? String ?? "0") ?? 0
             let clicks = Int((metrics?["CLICKS"] as? [String: Any])?["integerValue"] as? String ?? "0") ?? 0
 
-            totalEarnings += earnings / 1_000_000 // microseconds to dollars
+            let earnings = earningsMicros / 1_000_000
+            totalEarnings += earnings
             totalImpressions += impressions
             totalClicks += clicks
-            perApp.append(AdMobAppStats(appName: appName, earnings: earnings/1_000_000, impressions: impressions))
+            AppLogger.log("AdMob row: \(appName) earnings=\(earnings) impressions=\(impressions)", tag: "AdMob")
+            perApp.append(AdMobAppStats(appName: appName, earnings: earnings, impressions: impressions))
         }
 
         var s = AdMobStats()
