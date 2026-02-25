@@ -14,6 +14,10 @@ struct ContentView: View {
                     .tabItem {
                         Label("Dashboard", systemImage: "chart.bar.fill")
                     }
+                AdMobView()
+                    .tabItem {
+                        Label("AdMob", systemImage: "dollarsign.circle.fill")
+                    }
                 MapView()
                     .tabItem {
                         Label("User Map", systemImage: "map.fill")
@@ -25,10 +29,6 @@ struct ContentView: View {
                 DatabaseView()
                     .tabItem {
                         Label("Database", systemImage: "cylinder.split.1x2")
-                    }
-                AdMobView()
-                    .tabItem {
-                        Label("AdMob", systemImage: "dollarsign.circle.fill")
                     }
                 LogView()
                     .tabItem {

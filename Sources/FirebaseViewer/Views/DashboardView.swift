@@ -48,48 +48,51 @@ struct DashboardView: View {
     }
 
     private var todayRevenueCard: some View {
-        HStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(Color.green.opacity(0.15))
-                    .frame(width: 52, height: 52)
-                Image(systemName: "dollarsign.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(.green)
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Today's Ad Revenue")
+        HStack(spacing: 12) {
+            revenueCard(
+                label: "Today's Revenue",
+                amount: admob.todayEarnings,
+                decimals: 4,
+                icon: "dollarsign.circle.fill",
+                loading: admob.isLoading
+            )
+            revenueCard(
+                label: "30-Day Revenue",
+                amount: admob.stats.totalEarnings,
+                decimals: 2,
+                icon: "calendar",
+                loading: admob.isLoading
+            )
+        }
+        .padding(.horizontal)
+    }
+
+    private func revenueCard(label: String, amount: Double, decimals: Int, icon: String, loading: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: icon)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                if admob.isLoading {
-                    ProgressView().scaleEffect(0.8)
-                } else {
-                    Text(String(format: "$%.4f", admob.todayEarnings))
-                        .font(.title2.bold())
-                        .foregroundStyle(admob.todayEarnings > 0 ? .green : .primary)
-                }
+                    .foregroundStyle(.green)
+                Spacer()
             }
-            Spacer()
-            // 30-day total in smaller text
-            VStack(alignment: .trailing, spacing: 4) {
-                Text("30-Day Total")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                Text(String(format: "$%.2f", admob.stats.totalEarnings))
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.secondary)
+            if loading {
+                ProgressView().scaleEffect(0.8)
+            } else {
+                Text(String(format: "$%.\(decimals)f", amount))
+                    .font(.title3.bold())
+                    .foregroundStyle(amount > 0 ? .green : .primary)
             }
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 16)
                 .fill(.regularMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.green.opacity(0.3), lineWidth: 1)
-                )
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.green.opacity(0.3), lineWidth: 1))
         )
-        .padding(.horizontal)
     }
 
     private var statsGrid: some View {
