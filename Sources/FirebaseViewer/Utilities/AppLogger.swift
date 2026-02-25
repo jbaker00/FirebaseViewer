@@ -44,11 +44,15 @@ final class AppLogger: ObservableObject {
     // MARK: - Internal
 
     private func _log(_ message: String, tag: String) {
-        osLog.debug("[\(tag)] \(message)")
         let entry = Entry(timestamp: Date(), tag: tag, message: message)
+        let line = entry.formatted
+        // os_log (Console.app / Instruments)
+        osLog.debug("\(line)")
+        // Also print so it shows in Xcode debug console for easy copy-paste
+        print(line)
         entries.append(entry)
         if entries.count > 500 { entries.removeFirst(entries.count - 500) }
-        appendToFile(entry.formatted)
+        appendToFile(line)
     }
 
     private func appendToFile(_ line: String) {
