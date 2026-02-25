@@ -9,6 +9,7 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
 
     @Published var stats = AdMobStats()
     @Published var appStats: [AdMobAppStats] = []
+    @Published var todayEarnings: Double = 0
     @Published var isLoading = false
     @Published var error: String?
     @Published var isAuthorized = false
@@ -97,11 +98,16 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
                 self.error = "No AdMob account found"
                 return
             }
-            let (totalStats, perApp) = try await fetchEarnings(publisherID: publisherID, token: token)
+            async let thirtyDayTask = fetchEarnings(publisherID: publisherID, token: token, daysBack: 30)
+            async let todayTask     = fetchEarnings(publisherID: publisherID, token: token, daysBack: 0)
+            let ((totalStats, perApp), (todayStats, _)) = try await (thirtyDayTask, todayTask)
             self.stats = totalStats
             self.appStats = perApp
+            self.todayEarnings = todayStats.totalEarnings
+            AppLogger.log("AdMob today earnings: $\(String(format: "%.4f", todayStats.totalEarnings))", tag: "AdMob")
         } catch {
             self.error = error.localizedDescription
+            AppLogger.error("AdMob loadStats: \(error.localizedDescription)", tag: "AdMob")
         }
     }
 
@@ -192,9 +198,15 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
         return parsed.account?.map { $0.name } ?? []
     }
 
-    private func fetchEarnings(publisherID: String, token: String) async throws -> (AdMobStats, [AdMobAppStats]) {
-        let today = ISO8601DateFormatter().string(from: Date()).prefix(10)
-        let thirtyDaysAgo = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-30*24*3600)).prefix(10)
+    private func fetchEarnings(publisherID: String, token: String, daysBack: Int) async throws -> (AdMobStats, [AdMobAppStats]) {
+        func dateComponents(_ date: Date) -> [String: Int] {
+            let cal = Calendar.current
+            return ["year": cal.component(.year, from: date),
+                    "month": cal.component(.month, from: date),
+                    "day": cal.component(.day, from: date)]
+        }
+        let today = Date()
+        let start = daysBack == 0 ? today : Calendar.current.date(byAdding: .day, value: -daysBack, to: today)!
         let url = URL(string: "https://admob.googleapis.com/v1/\(publisherID)/networkReport:generate")!
         var req = admobRequest(url: url, token: token)
         req.httpMethod = "POST"
@@ -203,8 +215,8 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
         let body: [String: Any] = [
             "reportSpec": [
                 "dateRange": [
-                    "startDate": ["year": Int(thirtyDaysAgo.prefix(4))!, "month": Int(thirtyDaysAgo.dropFirst(5).prefix(2))!, "day": Int(thirtyDaysAgo.dropFirst(8))!],
-                    "endDate":   ["year": Int(today.prefix(4))!,         "month": Int(today.dropFirst(5).prefix(2))!,         "day": Int(today.dropFirst(8))!]
+                    "startDate": dateComponents(start),
+                    "endDate":   dateComponents(today)
                 ],
                 "dimensions": ["APP"],
                 "metrics": ["ESTIMATED_EARNINGS", "IMPRESSIONS", "CLICKS"],

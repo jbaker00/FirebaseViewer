@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct AdMobView: View {
-    @StateObject private var service = AdMobService()
+    @EnvironmentObject private var service: AdMobService
 
     var body: some View {
         NavigationStack {

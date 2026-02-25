@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DashboardView: View {
     @EnvironmentObject private var analytics: AnalyticsService
+    @EnvironmentObject private var admob: AdMobService
 
     var body: some View {
         NavigationStack {
@@ -36,11 +37,59 @@ struct DashboardView: View {
 
     private var contentView: some View {
         VStack(alignment: .leading, spacing: 20) {
+            if admob.isAuthorized {
+                todayRevenueCard
+            }
             statsGrid
             Divider().padding(.horizontal)
             countryList
         }
         .padding(.vertical)
+    }
+
+    private var todayRevenueCard: some View {
+        HStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(Color.green.opacity(0.15))
+                    .frame(width: 52, height: 52)
+                Image(systemName: "dollarsign.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.green)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Today's Ad Revenue")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                if admob.isLoading {
+                    ProgressView().scaleEffect(0.8)
+                } else {
+                    Text(String(format: "$%.4f", admob.todayEarnings))
+                        .font(.title2.bold())
+                        .foregroundStyle(admob.todayEarnings > 0 ? .green : .primary)
+                }
+            }
+            Spacer()
+            // 30-day total in smaller text
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("30-Day Total")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Text(String(format: "$%.2f", admob.stats.totalEarnings))
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(.regularMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                )
+        )
+        .padding(.horizontal)
     }
 
     private var statsGrid: some View {

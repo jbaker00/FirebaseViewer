@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var analytics = AnalyticsService()
+    @StateObject private var admob = AdMobService()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -36,6 +37,7 @@ struct ContentView: View {
             }
         }
         .environmentObject(analytics)
+        .environmentObject(admob)
         .task {
             await analytics.loadAll()
         }
