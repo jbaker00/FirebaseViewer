@@ -59,6 +59,7 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
             }
             // Extract code from callback URL
             guard let components = URLComponents(url: result, resolvingAgainstBaseURL: false),
+                  let code = components.queryItems?.first(where: { $0.name == "code" })?.value else {
                 error = "No authorization code in callback"
                 return
             }
