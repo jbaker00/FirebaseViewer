@@ -147,7 +147,7 @@ struct DashboardView: View {
     private var noAnalyticsView: some View {
         ContentUnavailableView(
             "No Analytics Linked",
-            systemImage: "chart.bar.xmark",
+            systemImage: "chart.bar",
             description: Text("NJ Bus Scheduler doesn't have Google Analytics linked.\nSelect a different app to view stats.")
         )
         .padding(.top, 60)
