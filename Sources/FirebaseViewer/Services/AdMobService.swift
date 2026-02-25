@@ -188,7 +188,7 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
 
     private func fetchAccounts(token: String) async throws -> [String] {
         let url = URL(string: "https://admob.googleapis.com/v1/accounts")!
-        var req = admobRequest(url: url, token: token)
+        let req = admobRequest(url: url, token: token)
         let (data, resp) = try await URLSession.shared.data(for: req)
         AppLogger.log("AdMob accounts response: HTTP \((resp as? HTTPURLResponse)?.statusCode ?? 0)")
         if let http = resp as? HTTPURLResponse, http.statusCode != 200 {
