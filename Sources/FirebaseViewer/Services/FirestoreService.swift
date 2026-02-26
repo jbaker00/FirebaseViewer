@@ -8,8 +8,8 @@ struct FirestoreService {
 
     // MARK: - Public
 
-    static func fetchCollectionStats(projectID: String) async throws -> [FirestoreCollectionStats] {
-        let token = try await getToken()
+    static func fetchCollectionStats(projectID: String, serviceAccountJSON: String? = nil) async throws -> [FirestoreCollectionStats] {
+        let token = try await getToken(serviceAccountJSON: serviceAccountJSON)
         let collections = try await listCollections(projectID: projectID, token: token)
         return try await withThrowingTaskGroup(of: FirestoreCollectionStats.self) { group in
             for name in collections {
@@ -28,12 +28,20 @@ struct FirestoreService {
 
     // MARK: - Private helpers
 
-    private static func getToken() async throws -> String {
+    private static func getToken(serviceAccountJSON: String?) async throws -> String {
         if let t = cachedToken, Date() < tokenExpiry { return t }
-        let t = try await JWTService.accessToken(
-            resource: "ResortViewerServiceAccount",
-            scope: "https://www.googleapis.com/auth/datastore"
-        )
+        let t: String
+        if let json = serviceAccountJSON {
+            t = try await JWTService.accessToken(
+                fromJSON: json,
+                scope: "https://www.googleapis.com/auth/datastore"
+            )
+        } else {
+            t = try await JWTService.accessToken(
+                resource: "ResortViewerServiceAccount",
+                scope: "https://www.googleapis.com/auth/datastore"
+            )
+        }
         cachedToken = t
         tokenExpiry = Date().addingTimeInterval(3500)
         return t

@@ -2,11 +2,12 @@ import SwiftUI
 
 struct ProjectPickerView: View {
     @EnvironmentObject private var analytics: AnalyticsService
+    @EnvironmentObject private var credentialStore: CredentialStore
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                ForEach(FirebaseProject.all) { project in
+                ForEach(credentialStore.projectsWithAllApps) { project in
                     ProjectChip(
                         project: project,
                         isSelected: analytics.selectedProject == project

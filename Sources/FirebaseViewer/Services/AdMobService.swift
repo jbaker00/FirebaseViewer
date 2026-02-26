@@ -17,10 +17,17 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
     @Published var error: String?
     @Published var isAuthorized = false
 
-    // gcloud installed-app client (supports admob.readonly for project owners)
-    private let clientID = "764086051850-6qr4p6gpi6hn506pt8ejuq83di341hur.apps.googleusercontent.com"
-    private let clientSecret = "d-FL95Q19q7MQmFpd7hHD0Ty"
-    private let redirectScheme = "com.googleusercontent.apps.764086051850-6qr4p6gpi6hn506pt8ejuq83di341hur"
+    private let credentialStore: CredentialStore
+
+    private var clientID:     String { credentialStore.admobClientID }
+    private var clientSecret: String { credentialStore.admobClientSecret }
+    private var quotaProject: String { credentialStore.admobGCPProjectID }
+
+    // Redirect scheme is derived from client ID (strip .apps.googleusercontent.com, prefix scheme)
+    private var redirectScheme: String {
+        let base = clientID.replacingOccurrences(of: ".apps.googleusercontent.com", with: "")
+        return "com.googleusercontent.apps.\(base)"
+    }
 
     private let tokenKey = "admob_refresh_token"
     private var accessToken: String?
@@ -28,10 +35,11 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
 
     // MARK: - Public
 
-    override init() {
+    init(credentialStore: CredentialStore) {
+        self.credentialStore = credentialStore
         super.init()
         // Restore saved refresh token
-        if let data = KeychainHelper.read(key: tokenKey) {
+        if let data = KeychainService.loadData(tokenKey) {
             isAuthorized = true
             _ = data // token stored, will use on next fetch
         }
@@ -81,7 +89,7 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
     }
 
     func signOut() {
-        KeychainHelper.delete(key: tokenKey)
+        KeychainService.delete(tokenKey)
         isAuthorized = false
         accessToken = nil
         tokenExpiry = .distantPast
@@ -154,13 +162,13 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
         accessToken = resp.access_token
         tokenExpiry = Date().addingTimeInterval(Double(resp.expires_in) - 60)
         if let refresh = resp.refresh_token {
-            KeychainHelper.save(key: tokenKey, value: refresh)
+            KeychainService.save(tokenKey, value: refresh)
         }
     }
 
     private func getAccessToken() async throws -> String {
         if let t = accessToken, Date() < tokenExpiry { return t }
-        guard let refreshData = KeychainHelper.read(key: tokenKey),
+        guard let refreshData = KeychainService.loadData(tokenKey),
               let refreshToken = String(data: refreshData, encoding: .utf8) else {
             isAuthorized = false
             throw NSError(domain: "AdMob", code: 401,
@@ -181,13 +189,13 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
         return resp.access_token
     }
 
-    // The user's GCP project where AdMob API is enabled
-    private let quotaProject = "globalvibes-1a6aa"
-
+    // The user's GCP project where AdMob API is enabled (from CredentialStore)
     private func admobRequest(url: URL, token: String) -> URLRequest {
         var req = URLRequest(url: url)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        req.setValue(quotaProject, forHTTPHeaderField: "x-goog-user-project")
+        if !quotaProject.isEmpty {
+            req.setValue(quotaProject, forHTTPHeaderField: "x-goog-user-project")
+        }
         return req
     }
 
@@ -379,38 +387,5 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
         }
         AppLogger.log("AdMob country map: \(result.count) countries", tag: "AdMob")
         return result
-    }
-}
-
-// MARK: - Keychain helper
-
-private enum KeychainHelper {
-    static func save(key: String, value: String) {
-        guard let data = value.data(using: .utf8) else { return }
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: key,
-            kSecValueData as String: data
-        ]
-        SecItemDelete(query as CFDictionary)
-        SecItemAdd(query as CFDictionary, nil)
-    }
-    static func read(key: String) -> Data? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: key,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        var result: AnyObject?
-        SecItemCopyMatching(query as CFDictionary, &result)
-        return result as? Data
-    }
-    static func delete(key: String) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: key
-        ]
-        SecItemDelete(query as CFDictionary)
     }
 }

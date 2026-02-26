@@ -3,7 +3,7 @@ import Foundation
 @MainActor
 final class AnalyticsService: ObservableObject {
 
-    @Published var selectedProject: FirebaseProject = FirebaseProject.all[0]
+    @Published var selectedProject: FirebaseProject
     @Published var stats = DashboardStats()
     @Published var countryData: [CountryUserCount] = []
     @Published var appVersionStats: [AppVersionStats] = []
@@ -11,8 +11,17 @@ final class AnalyticsService: ObservableObject {
     @Published var isLoading = false
     @Published var error: String?
 
-    // Separate cache per property (525369771 vs 525769038)
+    private let credentialStore: CredentialStore
+    // Separate cache per property
     private var tokenCache: [String: (token: String, expiry: Date)] = [:]
+
+    init(credentialStore: CredentialStore) {
+        self.credentialStore = credentialStore
+        self.selectedProject = credentialStore.projectsWithAllApps.first
+            ?? FirebaseProject(id: "empty", name: "No Projects", ga4PropertyID: nil,
+                               streamIDs: nil, firestoreProjectID: nil, admobAppName: nil,
+                               icon: "square.grid.2x2.fill", tintColor: .orange)
+    }
 
     // MARK: - Public
 
@@ -27,6 +36,13 @@ final class AnalyticsService: ObservableObject {
         await loadAll()
     }
 
+    func reloadProjects() {
+        let available = credentialStore.projectsWithAllApps
+        if !available.contains(selectedProject) {
+            selectedProject = available.first ?? selectedProject
+        }
+    }
+
     func loadAll() async {
         guard !isLoading else { return }
         isLoading = true
@@ -35,7 +51,13 @@ final class AnalyticsService: ObservableObject {
 
         // Firestore fetch (ResortViewer only)
         if let firestoreProjectID = selectedProject.firestoreProjectID {
-            async let fsTask = FirestoreService.fetchCollectionStats(projectID: firestoreProjectID)
+            // Resolve Firestore service account JSON on MainActor before spawning tasks
+            let firestoreProject = credentialStore.projects.first { $0.firestoreProjectID == firestoreProjectID }
+            let fsJSON: String? = firestoreProject.flatMap {
+                credentialStore.firestoreServiceAccountJSON(for: $0.id)
+                    ?? credentialStore.serviceAccountJSON(for: $0.id)
+            }
+            async let fsTask = FirestoreService.fetchCollectionStats(projectID: firestoreProjectID, serviceAccountJSON: fsJSON)
             // GA4 analytics fetch
             if let propertyID = selectedProject.ga4PropertyID {
                 let streamFilter = selectedProject.streamIDs.map { RunReportRequest.streamFilter(ids: $0) }
@@ -52,7 +74,7 @@ final class AnalyticsService: ObservableObject {
                 } catch let err as NSError where err.code == 403 {
                     // SA not yet granted access to this GA4 property
                     AppLogger.error("GA4 403 for property \(propertyID) — grant SA viewer access in GA4 console", tag: "GA4")
-                    self.error = "Analytics pending: add firebase-viewer@globalvibes-1a6aa.iam.gserviceaccount.com as a Viewer in GA4 property \(propertyID)."
+                    self.error = "Permission denied for GA4 property \(propertyID). Grant your service account Viewer access in the GA4 console."
                     if let fs = try? await fsTask { self.firestoreStats = fs }
                 } catch {
                     self.error = error.localizedDescription
@@ -74,7 +96,7 @@ final class AnalyticsService: ObservableObject {
                 self.appVersionStats = versions
             } catch let err as NSError where err.code == 403 {
                 AppLogger.error("GA4 403 for property \(propertyID) — check SA permissions", tag: "GA4")
-                self.error = "Analytics pending: service account needs Viewer access to GA4 property \(propertyID)."
+                self.error = "Permission denied for GA4 property \(propertyID). Grant your service account Viewer access in the GA4 console."
             } catch {
                 self.error = error.localizedDescription
             }
@@ -88,7 +110,23 @@ final class AnalyticsService: ObservableObject {
         if let cached = tokenCache[propertyID], Date() < cached.expiry {
             return cached.token
         }
-        let token = try await JWTService.accessToken()
+        // Try Keychain-stored service account from CredentialStore first,
+        // then fall back to bundled ServiceAccount.json for backward compatibility.
+        let token: String
+        let project = credentialStore.projects.first { $0.ga4PropertyID == propertyID }
+        if let pid = project?.id, let json = credentialStore.serviceAccountJSON(for: pid) {
+            token = try await JWTService.accessToken(
+                fromJSON: json,
+                scope: "https://www.googleapis.com/auth/analytics.readonly"
+            )
+        } else if let json = credentialStore.serviceAccountJSON(for: "allApps") {
+            token = try await JWTService.accessToken(
+                fromJSON: json,
+                scope: "https://www.googleapis.com/auth/analytics.readonly"
+            )
+        } else {
+            token = try await JWTService.accessToken()
+        }
         tokenCache[propertyID] = (token, Date().addingTimeInterval(3500))
         return token
     }

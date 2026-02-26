@@ -28,6 +28,14 @@ struct JWTService {
         return try await exchangeJWTForToken(jwt: jwt, tokenURI: key.token_uri)
     }
 
+    /// Fetch an access token from raw service account JSON string (user-provided, stored in Keychain).
+    static func accessToken(fromJSON json: String, scope: String) async throws -> String {
+        guard let data = json.data(using: .utf8) else { throw AuthError.missingServiceAccountFile }
+        let key = try JSONDecoder().decode(ServiceAccountKey.self, from: data)
+        let jwt = try buildJWT(key: key, scope: scope)
+        return try await exchangeJWTForToken(jwt: jwt, tokenURI: key.token_uri)
+    }
+
     // MARK: - Private
 
     private static func loadServiceAccountKey(resource: String = "ServiceAccount") throws -> ServiceAccountKey {
