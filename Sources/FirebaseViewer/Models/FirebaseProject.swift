@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 
-struct FirebaseProject: Identifiable, Equatable, Codable {
+struct FirebaseProject: Identifiable, Equatable {
     let id: String
     let name: String
     /// GA4 property ID, or nil if no analytics.
@@ -18,7 +18,7 @@ struct FirebaseProject: Identifiable, Equatable, Codable {
     var hasAnalytics: Bool { ga4PropertyID != nil }
     var hasFirestore: Bool { firestoreProjectID != nil }
 
-    enum ProjectColor: String, Codable {
+    enum ProjectColor: String {
         case orange, blue, purple, green, red
 
         var color: Color {
@@ -32,12 +32,46 @@ struct FirebaseProject: Identifiable, Equatable, Codable {
         }
     }
 
-    static let availableIcons: [String] = [
-        "tram.fill", "bus.fill", "car.fill", "airplane", "bicycle",
-        "house.fill", "building.2.fill", "beach.umbrella.fill",
-        "character.bubble.fill", "globe", "star.fill", "heart.fill",
-        "bolt.fill", "flame.fill", "leaf.fill", "camera.fill",
-        "gamecontroller.fill", "cart.fill", "fork.knife", "music.note",
-        "books.vertical.fill", "doc.fill", "chart.bar.fill", "person.2.fill"
+    static let all: [FirebaseProject] = [
+        FirebaseProject(
+            id: "allApps",
+            name: "All Apps",
+            ga4PropertyID: "525369771",
+            streamIDs: nil,
+            firestoreProjectID: nil,
+            admobAppName: nil,
+            icon: "square.grid.2x2.fill",
+            tintColor: .orange
+        ),
+        FirebaseProject(
+            id: "mauiTrolly",
+            name: "Maui Trolly",
+            ga4PropertyID: "525369771",
+            streamIDs: ["13644174285", "13643159972", "13643192970"],
+            firestoreProjectID: nil,
+            admobAppName: "Maui Trolly",
+            icon: "tram.fill",
+            tintColor: .blue
+        ),
+        FirebaseProject(
+            id: "creoleTranslator",
+            name: "Creole Translator",
+            ga4PropertyID: "525369771",
+            streamIDs: ["13651179226"],
+            firestoreProjectID: nil,
+            admobAppName: "CreoleTranslator",
+            icon: "character.bubble.fill",
+            tintColor: .purple
+        ),
+        FirebaseProject(
+            id: "resortBrowser",
+            name: "Resort Browser",
+            ga4PropertyID: "525769038",
+            streamIDs: nil,
+            firestoreProjectID: "resortviewer",
+            admobAppName: nil,
+            icon: "beach.umbrella.fill",
+            tintColor: .green
+        ),
     ]
 }

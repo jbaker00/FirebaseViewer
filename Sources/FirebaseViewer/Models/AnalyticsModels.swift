@@ -123,6 +123,35 @@ struct AdMobAppStats: Identifiable {
     let impressions: Int
 }
 
+// MARK: - Multi-period AdMob report
+
+struct AdMobPeriodReport {
+    let label: String
+    let earnings: Double
+    let impressions: Int
+    let clicks: Int
+    let adRequests: Int
+    let appBreakdown: [AppRow]
+    let countryBreakdown: [CountryRow]
+
+    struct AppRow: Identifiable {
+        let id = UUID()
+        let name: String
+        let earnings: Double
+        let impressions: Int
+        let clicks: Int
+    }
+
+    struct CountryRow: Identifiable {
+        let id = UUID()
+        let code: String
+        let name: String
+        let earnings: Double
+        let impressions: Int
+        let clicks: Int
+    }
+}
+
 struct AdMobCountryStats: Identifiable {
     let id = UUID()
     let countryCode: String   // ISO 3166-1 alpha-2 e.g. "US"

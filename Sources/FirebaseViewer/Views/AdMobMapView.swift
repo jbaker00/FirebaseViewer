@@ -7,7 +7,10 @@ struct AdMobMapView: View {
     @State private var cameraPosition: MapCameraPosition = .automatic
     @State private var selectedApp: String? = nil  // nil = all apps
 
-    /// Distinct app names across all countries, sorted by total earnings
+    // The retired NJ Bus Scheduler AdMob name — excluded from chips and App by Country view
+    static let excludedAppNames = ["Suburban NJ - NYC Scheduler"]
+
+    /// Distinct app names across all countries, sorted by total earnings.
     private var appNames: [String] {
         var totals: [String: Double] = [:]
         for country in service.countryStats {
@@ -15,23 +18,46 @@ struct AdMobMapView: View {
                 totals[app.appName, default: 0] += app.earnings
             }
         }
-        return totals.sorted { $0.value > $1.value }.map { $0.key }
+        return totals
+            .filter { !Self.excludedAppNames.contains($0.key) }
+            .sorted { $0.value > $1.value }
+            .map { $0.key }
     }
 
-    /// Countries filtered by the selected app (or all if nil)
+    /// Countries filtered by the selected app (or all if nil).
+    /// Excluded apps (e.g. retired NJ Bus Scheduler) are always stripped from results.
     private var filteredCountries: [AdMobCountryStats] {
-        guard let app = selectedApp else { return service.countryStats }
-        return service.countryStats.compactMap { country in
-            guard let entry = country.appBreakdown.first(where: { $0.appName == app }) else { return nil }
-            // Return a version of the country with only the selected app's numbers for bubble sizing
-            return AdMobCountryStats(
-                countryCode: country.countryCode,
-                countryName: country.countryName,
-                earnings: entry.earnings,
-                impressions: entry.impressions,
-                appBreakdown: [entry]
-            )
-        }.sorted { $0.earnings > $1.earnings }
+        let excluded = Self.excludedAppNames
+
+        if let app = selectedApp {
+            // App chip selected: only countries with actual data for that app
+            return service.countryStats.compactMap { country in
+                guard let entry = country.appBreakdown.first(where: { $0.appName == app }) else { return nil }
+                return AdMobCountryStats(
+                    countryCode: country.countryCode,
+                    countryName: country.countryName,
+                    earnings: entry.earnings,
+                    impressions: entry.impressions,
+                    appBreakdown: [entry]
+                )
+            }.sorted { $0.earnings > $1.earnings }
+        } else {
+            // All Apps: strip excluded apps from each country's breakdown, drop countries
+            // that only had excluded-app data (would otherwise appear as gray $0 dots).
+            return service.countryStats.compactMap { country in
+                let kept = country.appBreakdown.filter { !excluded.contains($0.appName) }
+                let totalEarnings    = kept.reduce(0.0) { $0 + $1.earnings }
+                let totalImpressions = kept.reduce(0)   { $0 + $1.impressions }
+                guard !kept.isEmpty else { return nil }
+                return AdMobCountryStats(
+                    countryCode: country.countryCode,
+                    countryName: country.countryName,
+                    earnings: totalEarnings,
+                    impressions: totalImpressions,
+                    appBreakdown: kept
+                )
+            }.sorted { $0.earnings > $1.earnings }
+        }
     }
 
     var body: some View {
@@ -76,7 +102,7 @@ struct AdMobMapView: View {
         return Map(position: $cameraPosition) {
             ForEach(countries) { item in
                 if let coord = item.coordinate {
-                    Annotation(item.countryCode,
+                    Annotation(item.countryName,
                                coordinate: CLLocationCoordinate2D(latitude: coord.lat, longitude: coord.lng)) {
                         RevenueBubble(
                             earnings: item.earnings,
@@ -90,6 +116,8 @@ struct AdMobMapView: View {
                 }
             }
         }
+        // Force a full MapKit re-render when the chip changes so stale pins are cleared
+        .id(selectedApp ?? "__all__")
         .mapStyle(.standard(elevation: .realistic))
         .mapControls { MapCompass(); MapScaleView() }
         .ignoresSafeArea(edges: .bottom)
@@ -162,12 +190,8 @@ private struct RevenueBubble: View {
     }
 
     private var color: Color {
-        switch ratio {
-        case 0.5...: return .green
-        case 0.15...: return .mint
-        case 0.03...: return .teal
-        default:     return .blue
-        }
+        // Medium red matching Google/Apple Maps pin — visible on blue ocean and green terrain
+        Color(red: 0.86, green: 0.27, blue: 0.22)
     }
 
     var body: some View {
@@ -198,14 +222,17 @@ private struct CountryRevenueBanner: View {
             // Header row
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(item.countryName)
-                        .font(.headline)
+                    HStack(spacing: 6) {
+                        let flag = item.countryCode.flagEmoji
+                        if !flag.isEmpty { Text(flag).font(.title2) }
+                        Text(item.countryName).font(.headline)
+                    }
                     Text("\(item.impressions.formatted()) impressions · all time")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Text(String(format: "$%.2f", item.earnings))
+                Text(item.earnings.revenueDisplay)
                     .font(.system(size: 26, weight: .bold, design: .rounded))
                     .foregroundStyle(.green)
                 Button(action: onDismiss) {
@@ -257,9 +284,19 @@ private struct CountryRevenueBanner: View {
 // MARK: - Helpers
 
 private extension Double {
-    /// Compact dollar label for bubble e.g. "$1.2" or "$0.38"
+    /// Compact label shown inside a bubble — shows fractional cents for tiny amounts.
     var revenueLabel: String {
-        if self >= 1 { return String(format: "$%.1f", self) }
-        return String(format: "$%.2f", self)
+        if self >= 1      { return String(format: "$%.1f",  self) }
+        if self >= 0.01   { return String(format: "$%.2f",  self) }
+        if self >= 0.0001 { return String(format: "$%.4f",  self) }
+        return String(format: "$%.6f", self)
+    }
+
+    /// Full display amount for the banner — always shows enough precision.
+    var revenueDisplay: String {
+        if self >= 1      { return String(format: "$%.2f",  self) }
+        if self >= 0.01   { return String(format: "$%.4f",  self) }
+        if self >= 0.0001 { return String(format: "$%.6f",  self) }
+        return String(format: "$%.8f", self)
     }
 }
