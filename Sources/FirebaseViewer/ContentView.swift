@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var analytics = AnalyticsService()
     @StateObject private var admob = AdMobService()
+    @StateObject private var projectStore = UserProjectStore()
 
     var body: some View {
         TabView {
@@ -22,9 +23,12 @@ struct ContentView: View {
                 .tabItem { Label("Database",     systemImage: "cylinder.split.1x2") }
             LogView()
                 .tabItem { Label("Logs",         systemImage: "scroll.fill") }
+            SettingsView()
+                .tabItem { Label("Settings",     systemImage: "gearshape.fill") }
         }
         .environmentObject(analytics)
         .environmentObject(admob)
+        .environmentObject(projectStore)
         .task {
             async let analyticsLoad: () = analytics.loadAll()
             async let admobLoad: ()     = admob.loadStats()
