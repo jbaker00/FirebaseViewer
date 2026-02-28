@@ -39,7 +39,7 @@ struct FirebaseProject: Identifiable, Equatable {
             ga4PropertyID: "525369771",
             streamIDs: nil,
             firestoreProjectID: nil,
-            admobAppName: nil,          // nil = show totals across all apps
+            admobAppName: nil,
             icon: "square.grid.2x2.fill",
             tintColor: .orange
         ),
@@ -69,19 +69,9 @@ struct FirebaseProject: Identifiable, Equatable {
             ga4PropertyID: "525769038",
             streamIDs: nil,
             firestoreProjectID: "resortviewer",
-            admobAppName: nil,          // no AdMob ads
+            admobAppName: nil,
             icon: "beach.umbrella.fill",
             tintColor: .green
-        ),
-        FirebaseProject(
-            id: "njBusScheduler",
-            name: "NJ Bus Scheduler",
-            ga4PropertyID: nil,
-            streamIDs: nil,
-            firestoreProjectID: nil,
-            admobAppName: "Suburban NJ - NYC Scheduler",
-            icon: "bus.fill",
-            tintColor: .red
         ),
     ]
 }

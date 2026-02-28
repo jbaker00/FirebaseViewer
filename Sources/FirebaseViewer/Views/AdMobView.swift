@@ -8,10 +8,10 @@ struct AdMobView: View {
             Group {
                 if !service.isAuthorized {
                     signInView
-                } else if service.isLoading {
+                } else if service.isLoading && service.multiPeriodReports.isEmpty {
                     ProgressView("Loading AdMob stats…")
                         .frame(maxWidth: .infinity, minHeight: 200)
-                } else if let err = service.error {
+                } else if let err = service.error, service.multiPeriodReports.isEmpty {
                     errorView(err)
                 } else {
                     statsView
@@ -70,132 +70,155 @@ struct AdMobView: View {
 
     private var statsView: some View {
         ScrollView {
-            LazyVStack(spacing: 20) {
-                // Today section
-                VStack(alignment: .leading, spacing: 10) {
-                    Label("Today", systemImage: "sun.max.fill")
-                        .font(.headline)
-                        .foregroundStyle(.orange)
-                        .padding(.horizontal)
-
-                    HStack(spacing: 12) {
-                        statCard(
-                            value: String(format: "$%.4f", service.todayEarnings),
-                            label: "Revenue",
-                            icon: "dollarsign.circle.fill",
-                            color: .green
-                        )
-                        statCard(
-                            value: formatNumber(service.todayAppStats.reduce(0) { $0 + $1.impressions }),
-                            label: "Impressions",
-                            icon: "eye.fill",
-                            color: .blue
-                        )
-                    }
-                    .padding(.horizontal)
-
-                    if !service.todayAppStats.isEmpty {
-                        ForEach(service.todayAppStats) { app in
-                            appRow(app, decimals: 4)
-                        }
-                        .padding(.horizontal)
-                    }
-                }
-                .padding(.top)
-
-                Divider().padding(.horizontal)
-
-                // 30-day section
-                VStack(alignment: .leading, spacing: 10) {
-                    Label("Last 30 Days", systemImage: "calendar")
-                        .font(.headline)
-                        .padding(.horizontal)
-
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                        statCard(
-                            value: String(format: "$%.2f", service.stats.totalEarnings),
-                            label: "Revenue",
-                            icon: "dollarsign.circle.fill",
-                            color: .green
-                        )
-                        statCard(
-                            value: formatNumber(service.stats.impressions),
-                            label: "Impressions",
-                            icon: "eye.fill",
-                            color: .blue
-                        )
-                        statCard(
-                            value: formatNumber(service.stats.clicks),
-                            label: "Clicks",
-                            icon: "cursorarrow.click.2",
-                            color: .orange
-                        )
-                        statCard(
-                            value: String(format: "$%.2f", service.stats.ecpm),
-                            label: "eCPM",
-                            icon: "chart.bar.fill",
-                            color: .purple
-                        )
-                    }
-                    .padding(.horizontal)
-
-                    if !service.appStats.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("By App")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal)
-                            ForEach(service.appStats) { app in
-                                appRow(app, decimals: 2)
-                            }
-                            .padding(.horizontal)
-                        }
-                    }
+            VStack(spacing: 20) {
+                ForEach(service.multiPeriodReports, id: \.label) { report in
+                    periodCard(report)
                 }
 
                 Button("Disconnect AdMob", role: .destructive) {
                     service.signOut()
                 }
-                .padding()
+                .padding(.vertical, 8)
             }
-            .padding(.bottom)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
         }
     }
 
-    private func statCard(value: String, label: String, icon: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+    // MARK: - Period card
+
+    private func periodCard(_ report: AdMobPeriodReport) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+
+            // ── Header ──
             HStack {
-                Image(systemName: icon).foregroundStyle(color)
+                Text(report.label)
+                    .font(.title3.bold())
                 Spacer()
+                Text(String(format: "$%.2f", report.earnings))
+                    .font(.title2.bold())
+                    .foregroundStyle(.green)
             }
-            Text(value)
-                .font(.title2.bold())
-            Text(label)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(Color(.secondarySystemGroupedBackground))
+
+            Divider()
+
+            // ── Metric strip ──
+            HStack(spacing: 0) {
+                metricPill(value: formatNumber(report.impressions),
+                           label: "Impressions",
+                           icon: "eye.fill", color: .blue)
+                pillDivider()
+                metricPill(value: formatNumber(report.clicks),
+                           label: "Clicks",
+                           icon: "cursorarrow.click.2", color: .orange)
+                pillDivider()
+                metricPill(value: formatNumber(report.adRequests),
+                           label: "Requests",
+                           icon: "antenna.radiowaves.left.and.right", color: .purple)
+            }
+            .padding(.vertical, 12)
+            .background(Color(.systemBackground))
+
+            // ── By App ──
+            if !report.appBreakdown.isEmpty {
+                Divider()
+                disclosureCard(
+                    label: "By App", icon: "iphone",
+                    rows: report.appBreakdown.map { app in
+                        BreakdownRow(name: app.name,
+                                     detail: "\(formatNumber(app.impressions)) imp · \(formatNumber(app.clicks)) clicks",
+                                     earnings: app.earnings)
+                    }
+                )
+            }
+
+            // ── By Country (hide $0 entries) ──
+            let revenueCountries = report.countryBreakdown.filter { $0.earnings > 0 }
+            if !revenueCountries.isEmpty {
+                Divider()
+                disclosureCard(
+                    label: "By Country", icon: "globe",
+                    rows: revenueCountries.map { c in
+                        let flag = c.code.flagEmoji
+                        let label = flag.isEmpty ? c.name : "\(flag) \(c.name)"
+                        return BreakdownRow(name: label,
+                                            detail: "\(formatNumber(c.impressions)) imp · \(formatNumber(c.clicks)) clicks",
+                                            earnings: c.earnings)
+                    }
+                )
+            }
+        }
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: Color.black.opacity(0.10), radius: 6, x: 0, y: 2)
+    }
+
+    // MARK: - Disclosure card
+
+    private struct BreakdownRow {
+        let name: String
+        let detail: String
+        let earnings: Double
+    }
+
+    private func disclosureCard(label: String, icon: String, rows: [BreakdownRow]) -> some View {
+        DisclosureGroup {
+            VStack(spacing: 0) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { idx, row in
+                    if idx > 0 { Divider().padding(.leading, 16) }
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(row.name)
+                                .font(.subheadline.weight(.medium))
+                                .lineLimit(1)
+                            Text(row.detail)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(String(format: "$%.4f", row.earnings))
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.green)
+                            .monospacedDigit()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                }
+            }
+            .background(Color(.secondarySystemGroupedBackground))
+        } label: {
+            Label(label, systemImage: icon)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+        }
+        .tint(.primary)
+    }
+
+    // MARK: - Helpers
+
+    private func metricPill(value: String, label: String, icon: String, color: Color) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon)
                 .font(.caption)
+                .foregroundStyle(color)
+            Text(value)
+                .font(.subheadline.bold())
+                .monospacedDigit()
+            Text(label)
+                .font(.caption2)
                 .foregroundStyle(.secondary)
         }
-        .padding()
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .frame(maxWidth: .infinity)
     }
 
-    private func appRow(_ app: AdMobAppStats, decimals: Int = 2) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(app.appName)
-                    .font(.subheadline.bold())
-                Text("\(formatNumber(app.impressions)) impressions")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Text(String(format: "$%.\(decimals)f", app.earnings))
-                .font(.headline)
-                .foregroundStyle(.green)
-        }
-        .padding()
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+    private func pillDivider() -> some View {
+        Divider()
+            .frame(height: 36)
     }
 
     private func errorView(_ msg: String) -> some View {
@@ -209,11 +232,9 @@ struct AdMobView: View {
         }
     }
 
-    // MARK: - Helpers
-
     private func formatNumber(_ n: Int) -> String {
-        if n >= 1_000_000 { return String(format: "%.1fM", Double(n)/1_000_000) }
-        if n >= 1_000     { return String(format: "%.1fK", Double(n)/1_000) }
+        if n >= 1_000_000 { return String(format: "%.1fM", Double(n) / 1_000_000) }
+        if n >= 1_000     { return String(format: "%.1fK", Double(n) / 1_000) }
         return "\(n)"
     }
 }

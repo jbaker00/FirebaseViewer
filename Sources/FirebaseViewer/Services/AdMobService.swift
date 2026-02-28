@@ -12,15 +12,16 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
     @Published var todayEarnings: Double = 0
     @Published var todayAppStats: [AdMobAppStats] = []    // today per-app
     @Published var countryStats: [AdMobCountryStats] = [] // all-time per-country
+    @Published var multiPeriodReports: [AdMobPeriodReport] = [] // Today/Yesterday/7d/30d
     @Published var isLoading = false
     @Published var hasData = false   // true once first successful load completes
     @Published var error: String?
     @Published var isAuthorized = false
 
-    // gcloud installed-app client (supports admob.readonly for project owners)
-    private let clientID = "764086051850-6qr4p6gpi6hn506pt8ejuq83di341hur.apps.googleusercontent.com"
+    private let clientID     = "764086051850-6qr4p6gpi6hn506pt8ejuq83di341hur.apps.googleusercontent.com"
     private let clientSecret = "d-FL95Q19q7MQmFpd7hHD0Ty"
     private let redirectScheme = "com.googleusercontent.apps.764086051850-6qr4p6gpi6hn506pt8ejuq83di341hur"
+    private let quotaProject = "globalvibes-1a6aa"
 
     private let tokenKey = "admob_refresh_token"
     private var accessToken: String?
@@ -31,7 +32,7 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
     override init() {
         super.init()
         // Restore saved refresh token
-        if let data = KeychainHelper.read(key: tokenKey) {
+        if let data = KeychainService.loadData(tokenKey) {
             isAuthorized = true
             _ = data // token stored, will use on next fetch
         }
@@ -81,7 +82,7 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
     }
 
     func signOut() {
-        KeychainHelper.delete(key: tokenKey)
+        KeychainService.delete(tokenKey)
         isAuthorized = false
         accessToken = nil
         tokenExpiry = .distantPast
@@ -105,15 +106,38 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
                 self.error = "No AdMob account found"
                 return
             }
+            let cal = Calendar(identifier: .gregorian)
+            let now = Date()
+            let todayStart     = cal.startOfDay(for: now)
+            let yesterdayStart = cal.date(byAdding: .day, value: -1, to: todayStart)!
+            let last7Start     = cal.date(byAdding: .day, value: -7,  to: todayStart)!
+            let last30Start    = cal.date(byAdding: .day, value: -30, to: todayStart)!
+
             async let thirtyDayTask  = fetchEarnings(publisherID: publisherID, token: token, daysBack: 30)
             async let todayTask      = fetchEarnings(publisherID: publisherID, token: token, daysBack: 0)
             async let countryTask    = fetchCountryEarnings(publisherID: publisherID, token: token)
-            let ((totalStats, perApp), (todayStats, todayPerApp), countries) = try await (thirtyDayTask, todayTask, countryTask)
+            async let todayPeriod    = fetchPeriodReport(publisherID: publisherID, token: token,
+                                                         label: "Today",
+                                                         startDate: todayStart, endDate: now)
+            async let yesterdayPeriod = fetchPeriodReport(publisherID: publisherID, token: token,
+                                                          label: "Yesterday",
+                                                          startDate: yesterdayStart, endDate: todayStart)
+            async let last7Period    = fetchPeriodReport(publisherID: publisherID, token: token,
+                                                         label: "Last 7 Days",
+                                                         startDate: last7Start, endDate: now)
+            async let last30Period   = fetchPeriodReport(publisherID: publisherID, token: token,
+                                                         label: "Last 30 Days",
+                                                         startDate: last30Start, endDate: now)
+
+            let ((totalStats, perApp), (todayStats, todayPerApp), countries,
+                 p0, p1, p2, p3) = try await (thirtyDayTask, todayTask, countryTask,
+                                               todayPeriod, yesterdayPeriod, last7Period, last30Period)
             self.stats = totalStats
             self.appStats = perApp
             self.todayEarnings = todayStats.totalEarnings
             self.todayAppStats = todayPerApp
             self.countryStats = countries.sorted { $0.earnings > $1.earnings }
+            self.multiPeriodReports = [p0, p1, p2, p3]
             self.hasData = true
             AppLogger.log("AdMob today earnings: $\(String(format: "%.4f", todayStats.totalEarnings))", tag: "AdMob")
             AppLogger.log("AdMob country stats: \(countries.count) countries", tag: "AdMob")
@@ -154,13 +178,13 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
         accessToken = resp.access_token
         tokenExpiry = Date().addingTimeInterval(Double(resp.expires_in) - 60)
         if let refresh = resp.refresh_token {
-            KeychainHelper.save(key: tokenKey, value: refresh)
+            KeychainService.save(tokenKey, value: refresh)
         }
     }
 
     private func getAccessToken() async throws -> String {
         if let t = accessToken, Date() < tokenExpiry { return t }
-        guard let refreshData = KeychainHelper.read(key: tokenKey),
+        guard let refreshData = KeychainService.loadData(tokenKey),
               let refreshToken = String(data: refreshData, encoding: .utf8) else {
             isAuthorized = false
             throw NSError(domain: "AdMob", code: 401,
@@ -181,13 +205,13 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
         return resp.access_token
     }
 
-    // The user's GCP project where AdMob API is enabled
-    private let quotaProject = "globalvibes-1a6aa"
-
+    // The GCP project where AdMob API is enabled (used for quota header)
     private func admobRequest(url: URL, token: String) -> URLRequest {
         var req = URLRequest(url: url)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        req.setValue(quotaProject, forHTTPHeaderField: "x-goog-user-project")
+        if !quotaProject.isEmpty {
+            req.setValue(quotaProject, forHTTPHeaderField: "x-goog-user-project")
+        }
         return req
     }
 
@@ -380,37 +404,112 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
         AppLogger.log("AdMob country map: \(result.count) countries", tag: "AdMob")
         return result
     }
-}
 
-// MARK: - Keychain helper
+    // MARK: - Multi-period report (Today / Yesterday / Last 7 Days / Last 30 Days)
 
-private enum KeychainHelper {
-    static func save(key: String, value: String) {
-        guard let data = value.data(using: .utf8) else { return }
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: key,
-            kSecValueData as String: data
+    private func fetchPeriodReport(
+        publisherID: String,
+        token: String,
+        label: String,
+        startDate: Date,
+        endDate: Date
+    ) async throws -> AdMobPeriodReport {
+        let cal = Calendar(identifier: .gregorian)
+        let startDC = cal.dateComponents([.year, .month, .day], from: startDate)
+        let endDC   = cal.dateComponents([.year, .month, .day], from: endDate)
+
+        let url = URL(string: "https://admob.googleapis.com/v1/\(publisherID)/networkReport:generate")!
+        var req = admobRequest(url: url, token: token)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = [
+            "reportSpec": [
+                "dateRange": [
+                    "startDate": ["year": startDC.year!, "month": startDC.month!, "day": startDC.day!],
+                    "endDate":   ["year": endDC.year!,   "month": endDC.month!,   "day": endDC.day!]
+                ],
+                "dimensions": ["APP", "COUNTRY"],
+                "metrics": ["ESTIMATED_EARNINGS", "IMPRESSIONS", "CLICKS", "AD_REQUESTS"],
+                "localizationSettings": ["currencyCode": "USD"]
+            ]
         ]
-        SecItemDelete(query as CFDictionary)
-        SecItemAdd(query as CFDictionary, nil)
-    }
-    static func read(key: String) -> Data? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: key,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        var result: AnyObject?
-        SecItemCopyMatching(query as CFDictionary, &result)
-        return result as? Data
-    }
-    static func delete(key: String) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: key
-        ]
-        SecItemDelete(query as CFDictionary)
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        guard let http = resp as? HTTPURLResponse, http.statusCode == 200,
+              let objects = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return AdMobPeriodReport(label: label, earnings: 0, impressions: 0, clicks: 0,
+                                    adRequests: 0, appBreakdown: [], countryBreakdown: [])
+        }
+
+        let isoToName = CountryCoordinates.isoCodeTable
+
+        struct RawRow {
+            let appName: String
+            let countryCode: String
+            let countryName: String
+            let earnings: Double
+            let impressions: Int
+            let clicks: Int
+            let adRequests: Int
+        }
+
+        var rows: [RawRow] = []
+        for obj in objects {
+            guard let row  = obj["row"]             as? [String: Any],
+                  let dims = row["dimensionValues"] as? [String: Any],
+                  let mets = row["metricValues"]    as? [String: Any] else { continue }
+            let appName     = (dims["APP"]     as? [String: Any])?["displayLabel"] as? String ?? "Unknown"
+            let countryCode = (dims["COUNTRY"] as? [String: Any])?["value"]        as? String ?? "ZZ"
+            let countryName = isoToName[countryCode] ?? countryCode
+            rows.append(RawRow(
+                appName: appName, countryCode: countryCode, countryName: countryName,
+                earnings:    microsDollar(from: mets, key: "ESTIMATED_EARNINGS"),
+                impressions: intValue(from: mets, key: "IMPRESSIONS"),
+                clicks:      intValue(from: mets, key: "CLICKS"),
+                adRequests:  intValue(from: mets, key: "AD_REQUESTS")
+            ))
+        }
+
+        // Aggregate by app
+        var appMap: [String: (Double, Int, Int, Int)] = [:]
+        for r in rows {
+            let cur = appMap[r.appName] ?? (0, 0, 0, 0)
+            appMap[r.appName] = (cur.0 + r.earnings, cur.1 + r.impressions,
+                                 cur.2 + r.clicks, cur.3 + r.adRequests)
+        }
+
+        // Aggregate by country
+        var countryMap: [String: (name: String, earnings: Double, imp: Int, clicks: Int, req: Int)] = [:]
+        for r in rows {
+            let cur = countryMap[r.countryCode]
+            countryMap[r.countryCode] = (
+                name:     r.countryName,
+                earnings: (cur?.earnings ?? 0) + r.earnings,
+                imp:      (cur?.imp      ?? 0) + r.impressions,
+                clicks:   (cur?.clicks   ?? 0) + r.clicks,
+                req:      (cur?.req      ?? 0) + r.adRequests
+            )
+        }
+
+        let appBreakdown = appMap.map { name, v in
+            AdMobPeriodReport.AppRow(name: name, earnings: v.0, impressions: v.1, clicks: v.2)
+        }.sorted { $0.earnings > $1.earnings }
+
+        let countryBreakdown = countryMap.map { code, v in
+            AdMobPeriodReport.CountryRow(code: code, name: v.name,
+                                         earnings: v.earnings, impressions: v.imp, clicks: v.clicks)
+        }.sorted { $0.earnings > $1.earnings }
+
+        return AdMobPeriodReport(
+            label:            label,
+            earnings:         rows.reduce(0) { $0 + $1.earnings },
+            impressions:      rows.reduce(0) { $0 + $1.impressions },
+            clicks:           rows.reduce(0) { $0 + $1.clicks },
+            adRequests:       rows.reduce(0) { $0 + $1.adRequests },
+            appBreakdown:     appBreakdown,
+            countryBreakdown: countryBreakdown
+        )
     }
 }

@@ -7,33 +7,21 @@ struct ContentView: View {
     var body: some View {
         TabView {
             AdMobView()
-                .tabItem {
-                    Label("AdMob", systemImage: "dollarsign.circle.fill")
-                }
-            DashboardView()
-                .tabItem {
-                    Label("Dashboard", systemImage: "chart.bar.fill")
-                }
-            MapView()
-                .tabItem {
-                    Label("User Map", systemImage: "person.3.fill")
-                }
+                .tabItem { Label("AdMob",        systemImage: "dollarsign.circle.fill") }
             AdMobMapView()
-                .tabItem {
-                    Label("Revenue Map", systemImage: "dollarsign.circle.fill")
-                }
+                .tabItem { Label("Revenue Map",  systemImage: "map.fill") }
+            AppCountryView()
+                .tabItem { Label("By Country",   systemImage: "globe.americas.fill") }
+            DashboardView()
+                .tabItem { Label("Dashboard",    systemImage: "chart.bar.fill") }
+            MapView()
+                .tabItem { Label("User Map",     systemImage: "person.3.fill") }
             AppVersionsView()
-                .tabItem {
-                    Label("Versions", systemImage: "app.badge.fill")
-                }
+                .tabItem { Label("Versions",     systemImage: "app.badge.fill") }
             DatabaseView()
-                .tabItem {
-                    Label("Database", systemImage: "cylinder.split.1x2")
-                }
+                .tabItem { Label("Database",     systemImage: "cylinder.split.1x2") }
             LogView()
-                .tabItem {
-                    Label("Logs", systemImage: "scroll.fill")
-                }
+                .tabItem { Label("Logs",         systemImage: "scroll.fill") }
         }
         .environmentObject(analytics)
         .environmentObject(admob)
@@ -44,4 +32,3 @@ struct ContentView: View {
         }
     }
 }
-

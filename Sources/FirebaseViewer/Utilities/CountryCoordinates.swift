@@ -53,11 +53,64 @@ enum CountryCoordinates {
         "UA": "Ukraine", "AE": "United Arab Emirates", "GB": "United Kingdom",
         "US": "United States", "UY": "Uruguay", "UZ": "Uzbekistan",
         "VE": "Venezuela", "VN": "Vietnam", "YE": "Yemen", "ZM": "Zambia", "ZW": "Zimbabwe",
+        "KR": "South Korea", "PS": "Palestine", "PR": "Puerto Rico",
+        "CW": "Curaçao", "TC": "Turks and Caicos Islands",
     ]
 
     // swiftlint:disable line_length
     private static let table: [String: (lat: Double, lng: Double)] = [
         "Afghanistan": (33.93, 67.71),
+        "Bahamas": (25.03, -77.40),
+        "Belize": (17.19, -88.50),
+        "Benin": (9.31, 2.32),
+        "Bhutan": (27.51, 90.43),
+        "Botswana": (-22.33, 24.68),
+        "Brunei": (4.53, 114.73),
+        "Burkina Faso": (12.36, -1.53),
+        "Burundi": (-3.37, 29.92),
+        "Cape Verde": (16.54, -23.04),
+        "Central African Republic": (6.61, 20.94),
+        "Chad": (15.45, 18.73),
+        "Comoros": (-11.65, 43.33),
+        "Congo": (-0.23, 15.83),
+        "Congo (DRC)": (-4.04, 21.76),
+        "Côte d'Ivoire": (7.54, -5.55),
+        "Djibouti": (11.83, 42.59),
+        "Equatorial Guinea": (1.65, 10.27),
+        "Eritrea": (15.18, 39.78),
+        "Fiji": (-17.71, 178.07),
+        "Gabon": (-0.80, 11.61),
+        "Gambia": (13.44, -15.31),
+        "Guinea": (11.74, -11.35),
+        "Guinea-Bissau": (11.80, -15.18),
+        "Guyana": (4.86, -58.93),
+        "Haiti": (18.97, -72.29),
+        "Laos": (19.86, 102.50),
+        "Lesotho": (-29.61, 28.23),
+        "Liberia": (6.43, -9.43),
+        "Liechtenstein": (47.17, 9.56),
+        "Macao": (22.17, 113.55),
+        "Madagascar": (-18.77, 46.87),
+        "Malawi": (-13.25, 34.30),
+        "Maldives": (3.20, 73.22),
+        "Mali": (17.57, -3.99),
+        "Mauritania": (21.01, -10.94),
+        "Mauritius": (-20.35, 57.55),
+        "Monaco": (43.74, 7.41),
+        "Namibia": (-22.96, 18.49),
+        "Niger": (17.61, 8.08),
+        "Papua New Guinea": (-6.31, 143.96),
+        "Rwanda": (-1.94, 29.87),
+        "Sierra Leone": (8.46, -11.78),
+        "Somalia": (5.15, 46.20),
+        "South Sudan": (6.88, 31.31),
+        "Sudan": (12.86, 30.22),
+        "Suriname": (3.92, -56.03),
+        "Timor-Leste": (-8.87, 125.73),
+        "Togo": (8.62, 0.82),
+        "Zambia": (-13.13, 27.85),
+        "Curaçao": (12.17, -68.99),
+        "Turks and Caicos Islands": (21.82, -71.80),
         "Albania": (41.15, 20.17),
         "Algeria": (28.03, 1.66),
         "Andorra": (42.54, 1.60),
@@ -190,4 +243,20 @@ enum CountryCoordinates {
         "Zimbabwe": (-19.02, 29.15),
     ]
     // swiftlint:enable line_length
+}
+
+// MARK: - Flag emoji helper
+
+extension String {
+    /// Converts an ISO 3166-1 alpha-2 country code (e.g. "US") to its flag emoji (e.g. "🇺🇸").
+    /// Returns an empty string for unrecognized codes.
+    var flagEmoji: String {
+        let base: UInt32 = 0x1F1E6 - 0x41  // regional indicator A = 0x1F1E6, 'A' = 0x41
+        let upper = uppercased()
+        guard upper.count == 2,
+              upper.unicodeScalars.allSatisfy({ $0.value >= 0x41 && $0.value <= 0x5A })
+        else { return "" }
+        let scalars = upper.unicodeScalars.compactMap { UnicodeScalar(base + $0.value) }
+        return scalars.map { String($0) }.joined()
+    }
 }

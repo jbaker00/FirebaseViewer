@@ -3,7 +3,7 @@ import Foundation
 @MainActor
 final class AnalyticsService: ObservableObject {
 
-    @Published var selectedProject: FirebaseProject = FirebaseProject.all[0]
+    @Published var selectedProject: FirebaseProject
     @Published var stats = DashboardStats()
     @Published var countryData: [CountryUserCount] = []
     @Published var appVersionStats: [AppVersionStats] = []
@@ -11,8 +11,12 @@ final class AnalyticsService: ObservableObject {
     @Published var isLoading = false
     @Published var error: String?
 
-    // Separate cache per property (525369771 vs 525769038)
+    // Separate cache per property
     private var tokenCache: [String: (token: String, expiry: Date)] = [:]
+
+    init() {
+        self.selectedProject = FirebaseProject.all[0]
+    }
 
     // MARK: - Public
 
@@ -52,7 +56,7 @@ final class AnalyticsService: ObservableObject {
                 } catch let err as NSError where err.code == 403 {
                     // SA not yet granted access to this GA4 property
                     AppLogger.error("GA4 403 for property \(propertyID) — grant SA viewer access in GA4 console", tag: "GA4")
-                    self.error = "Analytics pending: add firebase-viewer@globalvibes-1a6aa.iam.gserviceaccount.com as a Viewer in GA4 property \(propertyID)."
+                    self.error = "Permission denied for GA4 property \(propertyID). Grant your service account Viewer access in the GA4 console."
                     if let fs = try? await fsTask { self.firestoreStats = fs }
                 } catch {
                     self.error = error.localizedDescription
@@ -74,7 +78,7 @@ final class AnalyticsService: ObservableObject {
                 self.appVersionStats = versions
             } catch let err as NSError where err.code == 403 {
                 AppLogger.error("GA4 403 for property \(propertyID) — check SA permissions", tag: "GA4")
-                self.error = "Analytics pending: service account needs Viewer access to GA4 property \(propertyID)."
+                self.error = "Permission denied for GA4 property \(propertyID). Grant your service account Viewer access in the GA4 console."
             } catch {
                 self.error = error.localizedDescription
             }
