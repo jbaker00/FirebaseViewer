@@ -20,6 +20,8 @@ struct ContentView: View {
                 .tabItem { Label("Versions",     systemImage: "app.badge.fill") }
             DatabaseView()
                 .tabItem { Label("Database",     systemImage: "cylinder.split.1x2") }
+            ErrorLogsView()
+                .tabItem { Label("Errors",       systemImage: "exclamationmark.triangle.fill") }
             LogView()
                 .tabItem { Label("Logs",         systemImage: "scroll.fill") }
         }
