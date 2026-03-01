@@ -20,9 +20,10 @@ final class ErrorLogsService: ObservableObject {
         defer { isLoading = false }
 
         do {
-            let token = try await JWTService.shared.getAccessToken(scopes: [
-                "https://www.googleapis.com/auth/logging.read"
-            ])
+            let token = try await JWTService.accessToken(
+                resource: "ServiceAccount",
+                scope: "https://www.googleapis.com/auth/logging.read"
+            )
 
             var allEntries: [ErrorLogEntry] = []
 
