@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ErrorLogsView: View {
     @StateObject private var service = ErrorLogsService()
+    @EnvironmentObject private var analytics: AnalyticsService
     @State private var searchText = ""
     @State private var showGroqOnly = false
     @State private var showOpenAIOnly = false
@@ -97,6 +98,38 @@ struct ErrorLogsView: View {
 
     private var contentView: some View {
         VStack(spacing: 0) {
+            // GA4 TTS quota card — real event counts from Firebase Analytics
+            let tts = analytics.ttsQuotaStats
+            if tts.openAIQuotaExceededCount > 0 || tts.fallbackToComputerCount > 0 {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Image(systemName: "chart.bar.fill")
+                            .foregroundStyle(.indigo)
+                        Text("Creole Translator TTS Events (GA4 · last 30 days)")
+                            .font(.subheadline.bold())
+                        Spacer()
+                    }
+                    HStack(spacing: 16) {
+                        TTSStatPill(
+                            label: "OpenAI Quota Exceeded",
+                            count: tts.openAIQuotaExceededCount,
+                            color: .red
+                        )
+                        TTSStatPill(
+                            label: "Fallback to Computer Voice",
+                            count: tts.fallbackToComputerCount,
+                            color: .orange
+                        )
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 12)
+                .background(Color.indigo.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .padding(.horizontal)
+                .padding(.top, 8)
+            }
+
             // Groq quota summary card
             if groqErrorCount > 0 {
                 VStack(spacing: 4) {
@@ -347,6 +380,29 @@ struct ErrorLogRow: View {
             df.dateFormat = "MMM d, HH:mm"
             return df.string(from: date)
         }
+    }
+}
+
+// MARK: - TTS Stat Pill
+
+private struct TTSStatPill: View {
+    let label: String
+    let count: Int
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text("\(count)")
+                .font(.title3.bold())
+                .foregroundStyle(color)
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(color.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
 

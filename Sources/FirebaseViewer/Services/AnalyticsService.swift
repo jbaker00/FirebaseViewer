@@ -8,6 +8,7 @@ final class AnalyticsService: ObservableObject {
     @Published var countryData: [CountryUserCount] = []
     @Published var appVersionStats: [AppVersionStats] = []
     @Published var firestoreStats: [FirestoreCollectionStats] = []
+    @Published var ttsQuotaStats = TTSQuotaStats()
     @Published var isLoading = false
     @Published var error: String?
 
@@ -84,6 +85,9 @@ final class AnalyticsService: ObservableObject {
             }
         }
         // NJBusScheduler: no GA4, no Firestore — stats stay empty
+
+        // Always fetch TTS quota stats for Creole Translator regardless of selected project
+        await fetchAndUpdateTTSQuotaStats()
     }
 
     // MARK: - Auth
@@ -182,6 +186,48 @@ final class AnalyticsService: ObservableObject {
             )
         }
         .sorted { $0.userCount > $1.userCount }
+    }
+
+    // MARK: - TTS quota stats
+
+    private func fetchAndUpdateTTSQuotaStats() async {
+        guard let project = FirebaseProject.all.first(where: { $0.id == "creoleTranslator" }),
+              let propertyID = project.ga4PropertyID else { return }
+        do {
+            let token = try await getToken(forProperty: propertyID)
+            ttsQuotaStats = try await fetchTTSQuotaStats(token: token, propertyID: propertyID)
+        } catch {
+            AppLogger.error("TTS quota stats fetch failed: \(error.localizedDescription)", tag: "GA4")
+        }
+    }
+
+    private func fetchTTSQuotaStats(token: String, propertyID: String) async throws -> TTSQuotaStats {
+        let request = RunReportRequest(
+            dateRanges: [.init(startDate: "30daysAgo", endDate: "today")],
+            dimensions: [.init(name: "eventName")],
+            metrics: [.init(name: "eventCount")],
+            limit: 10,
+            dimensionFilter: RunReportRequest.eventFilter(names: [
+                "openai_tts_quota_exceeded",
+                "tts_fallback_to_computer"
+            ])
+        )
+        let response = try await runReport(request: request, token: token, propertyID: propertyID)
+        var stats = TTSQuotaStats()
+        for row in response.rows ?? [] {
+            let eventName = row.dimensionValues?.first?.value ?? ""
+            let count = Int(row.metricValues.first?.value ?? "0") ?? 0
+            switch eventName {
+            case "openai_tts_quota_exceeded": stats.openAIQuotaExceededCount = count
+            case "tts_fallback_to_computer":  stats.fallbackToComputerCount  = count
+            default: break
+            }
+        }
+        AppLogger.log(
+            "TTS quota stats: openaiQuota=\(stats.openAIQuotaExceededCount) fallback=\(stats.fallbackToComputerCount)",
+            tag: "GA4"
+        )
+        return stats
     }
 
     // MARK: - API call

@@ -54,6 +54,21 @@ struct RunReportRequest: Encodable {
         }
         return DimensionFilter(orGroup: .init(expressions: expressions), filter: nil)
     }
+
+    static func eventFilter(names: [String]) -> DimensionFilter {
+        if names.count == 1 {
+            return DimensionFilter(
+                orGroup: nil,
+                filter: .init(fieldName: "eventName", stringFilter: .init(value: names[0]))
+            )
+        }
+        let expressions = names.map {
+            DimensionFilter.OrGroup.Expression(
+                filter: .init(fieldName: "eventName", stringFilter: .init(value: $0))
+            )
+        }
+        return DimensionFilter(orGroup: .init(expressions: expressions), filter: nil)
+    }
 }
 
 struct RunReportResponse: Decodable {
@@ -70,6 +85,13 @@ struct RunReportResponse: Decodable {
     struct MetricValue: Decodable {
         let value: String
     }
+}
+
+// MARK: - TTS quota models
+
+struct TTSQuotaStats {
+    var openAIQuotaExceededCount: Int = 0
+    var fallbackToComputerCount: Int = 0
 }
 
 // MARK: - Dashboard models
