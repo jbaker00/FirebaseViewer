@@ -4,6 +4,7 @@ struct ErrorLogsView: View {
     @StateObject private var service = ErrorLogsService()
     @State private var searchText = ""
     @State private var showGroqOnly = false
+    @State private var showOpenAIOnly = false
     @State private var selectedSeverity: String? = nil
     @State private var daysBack = 7
 
@@ -23,9 +24,12 @@ struct ErrorLogsView: View {
             result = result.filter { $0.severity == severity }
         }
 
-        // Filter for Groq errors
-        if showGroqOnly {
-            result = result.filter { $0.isGroqQuotaError }
+        // Filter for quota errors
+        if showGroqOnly || showOpenAIOnly {
+            result = result.filter {
+                (showGroqOnly && $0.isGroqQuotaError) ||
+                (showOpenAIOnly && $0.isOpenAIQuotaError)
+            }
         }
 
         return result
@@ -33,6 +37,10 @@ struct ErrorLogsView: View {
 
     private var groqErrorCount: Int {
         service.entries.filter { $0.isGroqQuotaError }.count
+    }
+
+    private var openAIErrorCount: Int {
+        service.entries.filter { $0.isOpenAIQuotaError }.count
     }
 
     var body: some View {
@@ -89,7 +97,7 @@ struct ErrorLogsView: View {
 
     private var contentView: some View {
         VStack(spacing: 0) {
-            // Summary card
+            // Groq quota summary card
             if groqErrorCount > 0 {
                 VStack(spacing: 4) {
                     HStack {
@@ -110,6 +118,32 @@ struct ErrorLogsView: View {
                     .padding(.top, 8)
 
                     Toggle("Show Groq Errors Only", isOn: $showGroqOnly)
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
+                }
+            }
+
+            // OpenAI quota summary card
+            if openAIErrorCount > 0 {
+                VStack(spacing: 4) {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.green)
+                        Text("OpenAI TTS Quota Errors")
+                            .font(.subheadline.bold())
+                        Spacer()
+                        Text("\(openAIErrorCount)")
+                            .font(.title3.bold())
+                            .foregroundStyle(.green)
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 12)
+                    .background(Color.green.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .padding(.horizontal)
+                    .padding(.top, groqErrorCount > 0 ? 0 : 8)
+
+                    Toggle("Show OpenAI Errors Only", isOn: $showOpenAIOnly)
                         .padding(.horizontal)
                         .padding(.bottom, 8)
                 }
@@ -213,6 +247,17 @@ struct ErrorLogRow: View {
                         .padding(.vertical, 2)
                         .background(Color.purple.opacity(0.15))
                         .foregroundStyle(.purple)
+                        .clipShape(Capsule())
+                }
+
+                // OpenAI badge if applicable
+                if entry.isOpenAIQuotaError {
+                    Text("OPENAI")
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.green.opacity(0.15))
+                        .foregroundStyle(.green)
                         .clipShape(Capsule())
                 }
 

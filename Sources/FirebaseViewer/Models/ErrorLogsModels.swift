@@ -17,6 +17,15 @@ struct ErrorLogEntry: Identifiable {
          message.localizedCaseInsensitiveContains("rate limit") ||
          message.localizedCaseInsensitiveContains("429"))
     }
+
+    var isOpenAIQuotaError: Bool {
+        message.localizedCaseInsensitiveContains("openai") &&
+        (message.localizedCaseInsensitiveContains("insufficient_quota") ||
+         message.localizedCaseInsensitiveContains("quota") ||
+         message.localizedCaseInsensitiveContains("rate limit") ||
+         message.localizedCaseInsensitiveContains("429") ||
+         message.localizedCaseInsensitiveContains("tts_fallback_to_computer"))
+    }
 }
 
 // MARK: - Cloud Logging API Response
