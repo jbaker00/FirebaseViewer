@@ -20,7 +20,7 @@ struct FirebaseProject: Identifiable, Equatable {
     var hasAnalytics: Bool { ga4PropertyID != nil }
     var hasFirestore: Bool { firestoreProjectID != nil }
 
-    enum ProjectColor: String {
+    enum ProjectColor: String, CaseIterable {
         case orange, blue, purple, green, red
 
         var color: Color {

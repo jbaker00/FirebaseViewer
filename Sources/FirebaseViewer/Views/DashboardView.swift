@@ -3,6 +3,7 @@ import SwiftUI
 struct DashboardView: View {
     @EnvironmentObject private var analytics: AnalyticsService
     @EnvironmentObject private var admob: AdMobService
+    @EnvironmentObject private var projectStore: UserProjectStore
 
     var body: some View {
         NavigationStack {
@@ -20,6 +21,9 @@ struct DashboardView: View {
             .navigationTitle("Firebase Analytics")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    projectPickerMenu
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     if analytics.isLoading {
                         ProgressView()
@@ -30,6 +34,29 @@ struct DashboardView: View {
                     }
                 }
             }
+        }
+    }
+
+    // MARK: - Project picker
+
+    private var projectPickerMenu: some View {
+        Menu {
+            ForEach(projectStore.allProjects) { project in
+                Button {
+                    Task { await analytics.select(project: project) }
+                } label: {
+                    Label(project.name, systemImage: project.icon)
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: analytics.selectedProject.icon)
+                Text(analytics.selectedProject.name)
+                    .font(.subheadline.bold())
+                Image(systemName: "chevron.down")
+                    .font(.caption2)
+            }
+            .foregroundStyle(analytics.selectedProject.tintColor.color)
         }
     }
 
