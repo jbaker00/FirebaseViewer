@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import CryptoKit
 
 // MARK: - App Store Connect API Service
 
@@ -106,11 +107,7 @@ final class AppStoreConnectService: ObservableObject {
     private func buildJWT() throws -> String {
         let now = Int(Date().timeIntervalSince1970)
 
-        let header: [String: Any] = [
-            "alg": "ES256",
-            "kid": keyID,
-            "typ": "JWT"
-        ]
+        let header: [String: Any] = ["alg": "ES256", "kid": keyID, "typ": "JWT"]
         let payload: [String: Any] = [
             "iss": issuerID,
             "iat": now,
@@ -118,13 +115,15 @@ final class AppStoreConnectService: ObservableObject {
             "aud": "appstoreconnect-v1"
         ]
 
-        let headerB64 = try base64URLEncode(JSONSerialization.data(withJSONObject: header))
+        let headerB64  = try base64URLEncode(JSONSerialization.data(withJSONObject: header))
         let payloadB64 = try base64URLEncode(JSONSerialization.data(withJSONObject: payload))
         let signingInput = "\(headerB64).\(payloadB64)"
 
-        let privateKey = try importEC256PrivateKey(pem: privateKeyPEM)
-        let signature = try ecSign(data: Data(signingInput.utf8), key: privateKey)
-        let sigB64 = base64URLEncode(signature)
+        // CryptoKit handles Apple's PKCS#8 .p8 format natively
+        let privateKey = try P256.Signing.PrivateKey(pemRepresentation: privateKeyPEM)
+        let signature  = try privateKey.signature(for: Data(signingInput.utf8))
+        // rawRepresentation is already the 64-byte r||s format JWT ES256 requires
+        let sigB64 = base64URLEncode(signature.rawRepresentation)
 
         return "\(signingInput).\(sigB64)"
     }
@@ -310,75 +309,6 @@ final class AppStoreConnectService: ObservableObject {
         return overview
     }
 
-    // MARK: - EC256 Crypto
-
-    private func importEC256PrivateKey(pem: String) throws -> SecKey {
-        let stripped = pem
-            .replacingOccurrences(of: "-----BEGIN PRIVATE KEY-----", with: "")
-            .replacingOccurrences(of: "-----END PRIVATE KEY-----", with: "")
-            .replacingOccurrences(of: "\n", with: "")
-            .trimmingCharacters(in: .whitespaces)
-
-        guard let keyData = Data(base64Encoded: stripped) else {
-            throw ASCError.invalidPrivateKey
-        }
-
-        let attributes: [String: Any] = [
-            kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom,
-            kSecAttrKeyClass as String: kSecAttrKeyClassPrivate,
-            kSecAttrKeySizeInBits as String: 256
-        ]
-
-        var error: Unmanaged<CFError>?
-        guard let secKey = SecKeyCreateWithData(keyData as CFData, attributes as CFDictionary, &error) else {
-            throw ASCError.keyImportFailed(error?.takeRetainedValue().localizedDescription ?? "unknown")
-        }
-        return secKey
-    }
-
-    private func ecSign(data: Data, key: SecKey) throws -> Data {
-        var error: Unmanaged<CFError>?
-        guard let signature = SecKeyCreateSignature(
-            key,
-            .ecdsaSignatureMessageX962SHA256,
-            data as CFData,
-            &error
-        ) else {
-            throw ASCError.signingFailed(error?.takeRetainedValue().localizedDescription ?? "unknown")
-        }
-        // Convert DER signature to raw r||s (64 bytes) for JWT
-        return try derToRawECDSA(signature as Data)
-    }
-
-    /// Converts a DER-encoded ECDSA signature to the raw r||s (64-byte) format required by JWT ES256.
-    private func derToRawECDSA(_ der: Data) throws -> Data {
-        let bytes = [UInt8](der)
-        guard bytes.count > 2, bytes[0] == 0x30 else { return der }
-
-        var offset = 2
-        if bytes[1] & 0x80 != 0 { offset += Int(bytes[1] & 0x7F) }
-
-        func readInteger() throws -> Data {
-            guard offset < bytes.count, bytes[offset] == 0x02 else { throw ASCError.signingFailed("Bad DER") }
-            offset += 1
-            let len = Int(bytes[offset]); offset += 1
-            let intBytes = Data(bytes[offset..<(offset + len)]); offset += len
-            // Strip leading zero padding
-            if intBytes.count == 33 && intBytes[0] == 0x00 {
-                return intBytes.dropFirst()
-            }
-            // Pad to 32 bytes if shorter
-            if intBytes.count < 32 {
-                return Data(repeating: 0, count: 32 - intBytes.count) + intBytes
-            }
-            return intBytes
-        }
-
-        let r = try readInteger()
-        let s = try readInteger()
-        return r + s
-    }
-
     // MARK: - Gzip decompression (basic)
 
     private func decompressGzip(_ data: Data) -> Data? {
@@ -409,16 +339,12 @@ final class AppStoreConnectService: ObservableObject {
 // MARK: - Errors
 
 enum ASCError: LocalizedError {
-    case invalidPrivateKey
-    case keyImportFailed(String)
     case signingFailed(String)
     case encodingFailed
     case notConfigured
 
     var errorDescription: String? {
         switch self {
-        case .invalidPrivateKey:         return "Could not decode App Store Connect private key."
-        case .keyImportFailed(let msg):  return "EC key import failed: \(msg)"
         case .signingFailed(let msg):    return "JWT signing failed: \(msg)"
         case .encodingFailed:            return "UTF-8 encoding failed."
         case .notConfigured:             return "App Store Connect is not configured."
