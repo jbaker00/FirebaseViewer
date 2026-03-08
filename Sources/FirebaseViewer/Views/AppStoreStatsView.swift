@@ -208,16 +208,4 @@ struct AppStoreStatsView: View {
     }
 }
 
-private extension String {
-    var flagEmoji: String {
-        guard count == 2 else { return "" }
-        let base: UInt32 = 127397
-        var result = ""
-        for scalar in uppercased().unicodeScalars {
-            if let flag = Unicode.Scalar(base + scalar.value) {
-                result.append(String(flag))
-            }
-        }
-        return result
-    }
-}
+
