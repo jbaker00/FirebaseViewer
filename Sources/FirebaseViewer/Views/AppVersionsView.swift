@@ -1,21 +1,42 @@
 import SwiftUI
 
+// MARK: - Tab Picker
+
+enum VersionsTab: String, CaseIterable, Identifiable {
+    case grouped   = "Grouped"
+    case location  = "Location"
+    case revenue   = "Revenue"
+    case health    = "Health"
+    case adoption  = "Adoption"
+
+    var id: String { rawValue }
+}
+
+// MARK: - Container
+
 struct AppVersionsView: View {
     @EnvironmentObject private var analytics: AnalyticsService
+    @EnvironmentObject private var admob: AdMobService
+    @State private var selectedTab: VersionsTab = .grouped
 
     var body: some View {
         NavigationStack {
-            Group {
-                if analytics.isLoading && analytics.appVersionStats.isEmpty {
-                    ProgressView("Loading…")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if analytics.appVersionStats.isEmpty {
-                    emptyState
-                } else {
-                    list
+            VStack(spacing: 0) {
+                picker
+                Divider()
+
+                Group {
+                    if analytics.isLoading && analytics.appVersionStats.isEmpty {
+                        ProgressView("Loading…")
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if analytics.appVersionStats.isEmpty {
+                        emptyState
+                    } else {
+                        tabContent
+                    }
                 }
             }
-            .navigationTitle("By App Version")
+            .navigationTitle("Versions")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -31,41 +52,41 @@ struct AppVersionsView: View {
         }
     }
 
-    // MARK: - List
-
-    private var list: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                summaryBanner
-                    .padding()
-
-                ForEach(analytics.appVersionStats) { stat in
-                    AppVersionRow(stat: stat,
-                                  maxUsers: analytics.appVersionStats.first?.activeUsers ?? 1)
-                    Divider().padding(.leading, 20)
+    private var picker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(VersionsTab.allCases) { tab in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) { selectedTab = tab }
+                    } label: {
+                        Text(tab.rawValue)
+                            .font(.subheadline.weight(selectedTab == tab ? .bold : .medium))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 7)
+                            .background(
+                                selectedTab == tab
+                                    ? Color.accentColor.opacity(0.15)
+                                    : Color.clear,
+                                in: Capsule()
+                            )
+                            .foregroundStyle(selectedTab == tab ? .primary : .secondary)
+                    }
                 }
             }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
         }
     }
 
-    // MARK: - Summary banner
-
-    private var summaryBanner: some View {
-        let totalUsers = analytics.appVersionStats.map(\.activeUsers).reduce(0, +)
-        let versions = Set(analytics.appVersionStats.map(\.version)).count
-        let latestVersion = analytics.appVersionStats
-            .sorted { $0.version.compare($1.version, options: .numeric) == .orderedDescending }
-            .first?.version ?? "—"
-
-        return HStack(spacing: 0) {
-            BannerStat(value: "\(totalUsers)", label: "Total Users", color: .blue)
-            Divider().frame(height: 44)
-            BannerStat(value: "\(versions)", label: "Versions", color: .purple)
-            Divider().frame(height: 44)
-            BannerStat(value: "v\(latestVersion)", label: "Latest", color: .green)
+    @ViewBuilder
+    private var tabContent: some View {
+        switch selectedTab {
+        case .grouped:  GroupedByVersionView()
+        case .location: VersionsByLocationView()
+        case .revenue:  VersionsByRevenueView()
+        case .health:   VersionHealthView()
+        case .adoption: VersionAdoptionView()
         }
-        .padding(.vertical, 8)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
 
     private var emptyState: some View {
@@ -80,69 +101,27 @@ struct AppVersionsView: View {
     }
 }
 
-// MARK: - App Version Row
+// MARK: - Shared helpers used across version sub-views
 
-private struct AppVersionRow: View {
-    let stat: AppVersionStats
-    let maxUsers: Int
+func versionColor(_ version: String) -> Color {
+    let colors: [Color] = [.blue, .purple, .teal, .orange, .pink, .green, .indigo]
+    let hash = version.unicodeScalars.reduce(0) { $0 + Int($1.value) }
+    return colors[hash % colors.count]
+}
 
+struct VersionBadge: View {
+    let version: String
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top) {
-                // Version badge
-                Text("v\(stat.version)")
-                    .font(.system(.headline, design: .monospaced))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(versionColor(stat.version).opacity(0.15), in: Capsule())
-                    .foregroundStyle(versionColor(stat.version))
-
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("\(stat.activeUsers) users")
-                        .font(.subheadline.bold())
-                    Text("iOS \(stat.osVersion)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            // Progress bar
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.primary.opacity(0.07)).frame(height: 5)
-                    Capsule()
-                        .fill(versionColor(stat.version))
-                        .frame(width: geo.size.width * CGFloat(stat.activeUsers) / CGFloat(maxUsers), height: 5)
-                }
-            }
-            .frame(height: 5)
-
-            // Stats row
-            HStack(spacing: 0) {
-                MiniStat(icon: "arrow.triangle.2.circlepath", value: "\(stat.sessions)", label: "Sessions")
-                MiniStat(icon: "bolt.fill", value: stat.eventCount.abbreviated, label: "Events")
-                MiniStat(icon: "exclamationmark.triangle.fill",
-                         value: stat.crashes > 0 ? "\(stat.crashes)" : "0",
-                         label: "Crashes",
-                         color: stat.crashes > 0 ? .red : .secondary)
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
-    }
-
-    private func versionColor(_ version: String) -> Color {
-        let colors: [Color] = [.blue, .purple, .teal, .orange, .pink, .green, .indigo]
-        let hash = version.unicodeScalars.reduce(0) { $0 + Int($1.value) }
-        return colors[hash % colors.count]
+        Text("v\(version)")
+            .font(.system(.caption, design: .monospaced).bold())
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(versionColor(version).opacity(0.15), in: Capsule())
+            .foregroundStyle(versionColor(version))
     }
 }
 
-// MARK: - Mini helpers
-
-private struct MiniStat: View {
+struct MiniStat: View {
     let icon: String
     let value: String
     let label: String
@@ -163,7 +142,7 @@ private struct MiniStat: View {
     }
 }
 
-private struct BannerStat: View {
+struct BannerStat: View {
     let value: String
     let label: String
     let color: Color

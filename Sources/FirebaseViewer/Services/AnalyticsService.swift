@@ -7,6 +7,7 @@ final class AnalyticsService: ObservableObject {
     @Published var stats = DashboardStats()
     @Published var countryData: [CountryUserCount] = []
     @Published var appVersionStats: [AppVersionStats] = []
+    @Published var versionCountryStats: [VersionCountryStats] = []
     @Published var firestoreStats: [FirestoreCollectionStats] = []
     @Published var ttsQuotaStats = TTSQuotaStats()
     @Published var isLoading = false
@@ -27,6 +28,7 @@ final class AnalyticsService: ObservableObject {
         stats = DashboardStats()
         countryData = []
         appVersionStats = []
+        versionCountryStats = []
         firestoreStats = []
         error = nil
         await loadAll()
@@ -49,10 +51,12 @@ final class AnalyticsService: ObservableObject {
                     async let statsTask   = fetchStats(token: token, propertyID: propertyID, filter: streamFilter)
                     async let countryTask = fetchCountryData(token: token, propertyID: propertyID, filter: streamFilter)
                     async let versionTask = fetchAppVersionData(token: token, propertyID: propertyID, filter: streamFilter)
-                    let (newStats, countries, versions, fs) = try await (statsTask, countryTask, versionTask, fsTask)
+                    async let versionCountryTask = fetchVersionCountryData(token: token, propertyID: propertyID, filter: streamFilter)
+                    let (newStats, countries, versions, versionCountries, fs) = try await (statsTask, countryTask, versionTask, versionCountryTask, fsTask)
                     self.stats = newStats
                     self.countryData = countries
                     self.appVersionStats = versions
+                    self.versionCountryStats = versionCountries
                     self.firestoreStats = fs
                 } catch let err as NSError where err.code == 403 {
                     // SA not yet granted access to this GA4 property
@@ -73,10 +77,12 @@ final class AnalyticsService: ObservableObject {
                 async let statsTask   = fetchStats(token: token, propertyID: propertyID, filter: streamFilter)
                 async let countryTask = fetchCountryData(token: token, propertyID: propertyID, filter: streamFilter)
                 async let versionTask = fetchAppVersionData(token: token, propertyID: propertyID, filter: streamFilter)
-                let (newStats, countries, versions) = try await (statsTask, countryTask, versionTask)
+                async let versionCountryTask = fetchVersionCountryData(token: token, propertyID: propertyID, filter: streamFilter)
+                let (newStats, countries, versions, versionCountries) = try await (statsTask, countryTask, versionTask, versionCountryTask)
                 self.stats = newStats
                 self.countryData = countries
                 self.appVersionStats = versions
+                self.versionCountryStats = versionCountries
             } catch let err as NSError where err.code == 403 {
                 AppLogger.error("GA4 403 for property \(propertyID) — check SA permissions", tag: "GA4")
                 self.error = "Permission denied for GA4 property \(propertyID). Grant your service account Viewer access in the GA4 console."
@@ -186,6 +192,29 @@ final class AnalyticsService: ObservableObject {
             )
         }
         .sorted { $0.userCount > $1.userCount }
+    }
+
+    // MARK: - Fetch version × country breakdown
+
+    private func fetchVersionCountryData(token: String, propertyID: String, filter: RunReportRequest.DimensionFilter?) async throws -> [VersionCountryStats] {
+        let request = RunReportRequest(
+            dateRanges: [.init(startDate: "30daysAgo", endDate: "today")],
+            dimensions: [.init(name: "appVersion"), .init(name: "country")],
+            metrics: [.init(name: "activeUsers")],
+            limit: 200,
+            dimensionFilter: filter
+        )
+        let response = try await runReport(request: request, token: token, propertyID: propertyID)
+        return (response.rows ?? []).compactMap { row in
+            let dims = row.dimensionValues ?? []
+            let users = Int(row.metricValues.first?.value ?? "0") ?? 0
+            guard dims.count >= 2, users > 0 else { return nil }
+            let version = dims[0].value
+            let country = dims[1].value
+            guard country != "(not set)" else { return nil }
+            return VersionCountryStats(version: version, country: country, activeUsers: users)
+        }
+        .sorted { $0.activeUsers > $1.activeUsers }
     }
 
     // MARK: - TTS quota stats
