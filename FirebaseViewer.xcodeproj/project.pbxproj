@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -45,7 +45,7 @@
 		084EE78CF46C11F194B5B3C8 /* CountryCoordinates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountryCoordinates.swift; sourceTree = "<group>"; };
 		0BEE9E5C0D2407715C04635A /* LogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogView.swift; sourceTree = "<group>"; };
 		1096459A59AC8750EEE7D9E4 /* FirebaseViewerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseViewerApp.swift; sourceTree = "<group>"; };
-		120A3292AA723E86EBA791B3 /* FirebaseViewer.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FirebaseViewer.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		120A3292AA723E86EBA791B3 /* FirebaseViewer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FirebaseViewer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		130F3C8DB5EE3E5D027413D1 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		2AF588988D7816FA326CAE0A /* MapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapView.swift; sourceTree = "<group>"; };
 		3FAEBBDAB8BED39EB2BB3BA7 /* ResortViewerServiceAccount.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ResortViewerServiceAccount.json; sourceTree = "<group>"; };
@@ -205,7 +205,6 @@
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 					D2BEF0D42A1CDAA5059A15C7 = {
-						DevelopmentTeam = 4PDB3TQD2G;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -220,7 +219,6 @@
 			);
 			mainGroup = 48FFE821746444DAC98DC516;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -287,11 +285,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = G3P9A8Z2NP;
 				INFOPLIST_FILE = Sources/FirebaseViewer/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 27;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -437,11 +437,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = G3P9A8Z2NP;
 				INFOPLIST_FILE = Sources/FirebaseViewer/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 27;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
