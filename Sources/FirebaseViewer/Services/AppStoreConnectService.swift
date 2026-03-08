@@ -18,36 +18,54 @@ final class AppStoreConnectService: ObservableObject {
     private var privateKeyPEM: String = ""
     private var tokenCache: (token: String, expiry: Date)?
 
+    // Keychain keys
+    private static let keychainKeyID      = "asc_key_id"
+    private static let keychainIssuerID   = "asc_issuer_id"
+    private static let keychainPrivateKey = "asc_private_key_pem"
+
+    // Default identifiers (not secret — the .p8 private key is the secret)
+    private static let defaultKeyID    = "597FS4329D"
+    private static let defaultIssuerID = "69a6de71-bcfd-47e3-e053-5b8c7c11a4d1"
+    private static let defaultKeyPath  = "~/.appstoreconnect/AuthKey_597FS4329D.p8"
+
     // MARK: - Configuration
 
     func configure() {
-        loadConfig()
+        loadOrSeedCredentials()
         isConfigured = !keyID.isEmpty && !issuerID.isEmpty && !privateKeyPEM.isEmpty
         if !isConfigured {
-            error = "App Store Connect not configured. Place AppStoreConnectConfig.json in Resources."
+            error = "App Store Connect credentials not found. Ensure the .p8 key exists at \(Self.defaultKeyPath)."
         }
     }
 
-    private func loadConfig() {
-        // Load from bundled config file
-        guard let configURL = Bundle.main.url(forResource: "AppStoreConnectConfig", withExtension: "json"),
-              let data = try? Data(contentsOf: configURL),
-              let config = try? JSONDecoder().decode(ASCConfig.self, from: data) else {
-            AppLogger.error("AppStoreConnectConfig.json not found in bundle", tag: "ASC")
+    private func loadOrSeedCredentials() {
+        // Try Keychain first
+        if let kid  = KeychainService.load(Self.keychainKeyID),
+           let iid  = KeychainService.load(Self.keychainIssuerID),
+           let pkey = KeychainService.load(Self.keychainPrivateKey),
+           !kid.isEmpty, !pkey.isEmpty {
+            keyID         = kid
+            issuerID      = iid
+            privateKeyPEM = pkey
+            AppLogger.log("App Store Connect loaded from Keychain (Key: \(keyID))", tag: "ASC")
             return
         }
 
-        keyID = config.keyID
-        issuerID = config.issuerID
-
-        // Load .p8 key from the specified path
-        let keyPath = (config.privateKeyPath as NSString).expandingTildeInPath
-        guard let keyData = try? String(contentsOfFile: keyPath, encoding: .utf8) else {
-            AppLogger.error("Could not read .p8 key at: \(keyPath)", tag: "ASC")
+        // First launch — read .p8 from disk and seed Keychain
+        let expandedPath = (Self.defaultKeyPath as NSString).expandingTildeInPath
+        guard let pem = try? String(contentsOfFile: expandedPath, encoding: .utf8) else {
+            AppLogger.error("Could not read .p8 key at: \(expandedPath)", tag: "ASC")
             return
         }
-        privateKeyPEM = keyData
-        AppLogger.log("App Store Connect configured (Key: \(keyID))", tag: "ASC")
+
+        keyID         = Self.defaultKeyID
+        issuerID      = Self.defaultIssuerID
+        privateKeyPEM = pem
+
+        KeychainService.save(Self.keychainKeyID,      value: keyID)
+        KeychainService.save(Self.keychainIssuerID,   value: issuerID)
+        KeychainService.save(Self.keychainPrivateKey, value: privateKeyPEM)
+        AppLogger.log("App Store Connect seeded into Keychain (Key: \(keyID))", tag: "ASC")
     }
 
     // MARK: - Public
@@ -387,14 +405,6 @@ final class AppStoreConnectService: ObservableObject {
         guard let data = string.data(using: .utf8) else { throw ASCError.encodingFailed }
         return base64URLEncode(data)
     }
-}
-
-// MARK: - Config model
-
-private struct ASCConfig: Decodable {
-    let keyID: String
-    let issuerID: String
-    let privateKeyPath: String
 }
 
 // MARK: - Errors
