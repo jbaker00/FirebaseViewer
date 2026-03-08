@@ -17,12 +17,14 @@ final class AppStoreConnectService: ObservableObject {
     private var keyID: String = ""
     private var issuerID: String = ""
     private var privateKeyPEM: String = ""
+    private var vendorNumber: String = ""
     private var tokenCache: (token: String, expiry: Date)?
 
     // Keychain keys
-    private static let keychainKeyID      = "asc_key_id"
-    private static let keychainIssuerID   = "asc_issuer_id"
-    private static let keychainPrivateKey = "asc_private_key_pem"
+    private static let keychainKeyID       = "asc_key_id"
+    private static let keychainIssuerID    = "asc_issuer_id"
+    private static let keychainPrivateKey  = "asc_private_key_pem"
+    private static let keychainVendorNumber = "asc_vendor_number"
 
     // Default identifiers (not secret — the .p8 private key is the secret)
     private static let defaultKeyID    = "597FS4329D"
@@ -47,7 +49,8 @@ final class AppStoreConnectService: ObservableObject {
             keyID         = kid
             issuerID      = iid
             privateKeyPEM = pkey
-            AppLogger.log("App Store Connect loaded from Keychain (Key: \(keyID))", tag: "ASC")
+            vendorNumber  = KeychainService.load(Self.keychainVendorNumber) ?? ""
+            AppLogger.log("App Store Connect loaded from Keychain (Key: \(keyID), vendor: \(vendorNumber.isEmpty ? "unknown" : vendorNumber))", tag: "ASC")
             return
         }
 
@@ -78,12 +81,18 @@ final class AppStoreConnectService: ObservableObject {
         defer { isLoading = false }
 
         do {
-            // First fetch available apps
             let token = try getToken()
+
+            // Auto-discover vendor number on first use
+            if vendorNumber.isEmpty {
+                vendorNumber = try await discoverVendorNumber(token: token)
+                KeychainService.save(Self.keychainVendorNumber, value: vendorNumber)
+                AppLogger.log("Discovered vendor number: \(vendorNumber)", tag: "ASC")
+            }
+
             apps = try await fetchApps(token: token)
             AppLogger.log("Fetched \(apps.count) apps from App Store Connect", tag: "ASC")
 
-            // Fetch sales reports for last 30 days
             let reports = try await fetchSalesReports(token: token, days: 30)
             overview = buildOverview(from: reports)
         } catch {
@@ -143,44 +152,79 @@ final class AppStoreConnectService: ObservableObject {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
 
-        // Fetch daily reports for the last N days
         for dayOffset in 1...days {
             guard let date = calendar.date(byAdding: .day, value: -dayOffset, to: Date()) else { continue }
             let dateStr = dateFormatter.string(from: date)
 
             var components = URLComponents(string: "https://api.appstoreconnect.apple.com/v1/salesReports")!
             components.queryItems = [
-                URLQueryItem(name: "filter[frequency]", value: "DAILY"),
-                URLQueryItem(name: "filter[reportDate]", value: dateStr),
-                URLQueryItem(name: "filter[reportSubType]", value: "SUMMARY"),
-                URLQueryItem(name: "filter[reportType]", value: "SALES"),
-                URLQueryItem(name: "filter[vendorNumber]", value: issuerID)
+                URLQueryItem(name: "filter[frequency]",      value: "DAILY"),
+                URLQueryItem(name: "filter[reportDate]",     value: dateStr),
+                URLQueryItem(name: "filter[reportSubType]",  value: "SUMMARY"),
+                URLQueryItem(name: "filter[reportType]",     value: "SALES"),
+                URLQueryItem(name: "filter[vendorNumber]",   value: vendorNumber)
             ]
 
             do {
-                let data = try await apiRequest(url: components.url!, token: token, acceptGzip: true)
+                let data = try await apiRequest(url: components.url!, token: token)
                 let reports = parseSalesReport(data: data, date: date)
                 allReports.append(contentsOf: reports)
             } catch let err as NSError where err.code == 404 {
-                // Report not yet available for this date — skip
-                continue
+                continue  // report not yet available for this date
             } catch {
-                AppLogger.error("Sales report for \(dateStr): \(error.localizedDescription)", tag: "ASC")
+                AppLogger.error("Sales report \(dateStr): \(error.localizedDescription)", tag: "ASC")
                 continue
             }
         }
 
+        AppLogger.log("Fetched \(allReports.count) report rows over \(days) days", tag: "ASC")
         return allReports
     }
 
-    private func apiRequest(url: URL, token: String, acceptGzip: Bool = false) async throws -> Data {
+    /// Discovers the vendor number by making a probe API call and parsing Apple's error response.
+    private func discoverVendorNumber(token: String) async throws -> String {
+        var components = URLComponents(string: "https://api.appstoreconnect.apple.com/v1/salesReports")!
+        components.queryItems = [
+            URLQueryItem(name: "filter[frequency]",     value: "DAILY"),
+            URLQueryItem(name: "filter[reportDate]",    value: "2024-01-01"),
+            URLQueryItem(name: "filter[reportSubType]", value: "SUMMARY"),
+            URLQueryItem(name: "filter[reportType]",    value: "SALES"),
+            URLQueryItem(name: "filter[vendorNumber]",  value: "0")
+        ]
+
+        var request = URLRequest(url: components.url!)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+
+        // Apple returns the valid vendor number(s) in the error detail
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let errors = json["errors"] as? [[String: Any]] {
+            for errorObj in errors {
+                let detail = (errorObj["detail"] as? String) ?? ""
+                let title  = (errorObj["title"]  as? String) ?? ""
+                let text   = detail + " " + title
+                AppLogger.log("ASC vendor probe response: \(text)", tag: "ASC")
+
+                // Extract any 5-10 digit number from the error text
+                let regex = try? NSRegularExpression(pattern: "\\b(\\d{5,10})\\b")
+                let range = NSRange(text.startIndex..., in: text)
+                if let match = regex?.firstMatch(in: text, range: range),
+                   let r = Range(match.range(at: 1), in: text) {
+                    return String(text[r])
+                }
+            }
+        }
+
+        throw ASCError.vendorNumberNotFound
+    }
+
+    private func apiRequest(url: URL, token: String) async throws -> Data {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        if acceptGzip {
-            request.setValue("application/a]gzip", forHTTPHeaderField: "Accept")
-        } else {
-            request.setValue("application/json", forHTTPHeaderField: "Accept")
-        }
+        // Let URLSession handle Accept-Encoding/gzip automatically
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -196,10 +240,6 @@ final class AppStoreConnectService: ObservableObject {
             }
         }
 
-        // Decompress gzip if needed
-        if acceptGzip {
-            return decompressGzip(data) ?? data
-        }
         return data
     }
 
@@ -309,18 +349,6 @@ final class AppStoreConnectService: ObservableObject {
         return overview
     }
 
-    // MARK: - Gzip decompression (basic)
-
-    private func decompressGzip(_ data: Data) -> Data? {
-        // If data starts with gzip magic bytes (1f 8b), attempt decompression
-        guard data.count > 2, data[0] == 0x1F, data[1] == 0x8B else {
-            return data // Not gzipped, return as-is
-        }
-        // Use NSData's built-in decompression if available
-        // Fallback: try interpreting as plain text
-        return nil
-    }
-
     // MARK: - Helpers
 
     private func base64URLEncode(_ data: Data) -> String {
@@ -342,12 +370,14 @@ enum ASCError: LocalizedError {
     case signingFailed(String)
     case encodingFailed
     case notConfigured
+    case vendorNumberNotFound
 
     var errorDescription: String? {
         switch self {
-        case .signingFailed(let msg):    return "JWT signing failed: \(msg)"
-        case .encodingFailed:            return "UTF-8 encoding failed."
-        case .notConfigured:             return "App Store Connect is not configured."
+        case .signingFailed(let msg):  return "JWT signing failed: \(msg)"
+        case .encodingFailed:          return "UTF-8 encoding failed."
+        case .notConfigured:           return "App Store Connect is not configured."
+        case .vendorNumberNotFound:    return "Could not discover your App Store vendor number. Find it in App Store Connect → Sales and Trends → Reports → View Vendor Numbers."
         }
     }
 }
