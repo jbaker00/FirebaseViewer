@@ -121,6 +121,13 @@ struct CountryUserCount: Identifiable {
     let coordinate: (lat: Double, lng: Double)?
 }
 
+struct VersionCountryStats: Identifiable {
+    let id = UUID()
+    let version: String
+    let country: String
+    let activeUsers: Int
+}
+
 // MARK: - Firestore models
 
 struct FirestoreCollectionStats: Identifiable {
