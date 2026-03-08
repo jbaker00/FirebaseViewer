@@ -25,6 +25,7 @@ ResortViewerServiceAccount.json
 
 # App Store Connect secrets
 AppStoreConnectConfig.json
+AuthKey_*.p8
 
 # macOS
 .DS_Store

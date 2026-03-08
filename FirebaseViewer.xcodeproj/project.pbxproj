@@ -33,6 +33,7 @@
 		AEF5B3335C5FC79B68975509 /* AnalyticsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A74638F7AE881A6C9E364041 /* AnalyticsModels.swift */; };
 		B6DD4BE657DAC7B8F46DB36F /* AppStoreStatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01D9A1663EE19085BD7E4B03 /* AppStoreStatsView.swift */; };
 		B9873BCD37666BE9E5589833 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65A25B943920AF057012BA17 /* ContentView.swift */; };
+		BDED4D9EC816AEEF01021A0D /* AuthKey_597FS4329D.p8 in Resources */ = {isa = PBXBuildFile; fileRef = A4BDCA918158CCBAD13B37DB /* AuthKey_597FS4329D.p8 */; };
 		BEDD7AE25792E5FC72E8F2CB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 78A2EDB85A6B565049DC4015 /* Assets.xcassets */; };
 		C6F32C456704A82856EFB3B0 /* AdMobView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4802D6D2C53D790EEA3F1C8 /* AdMobView.swift */; };
 		CAAE8E1E6977298718C1305F /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87A766676281AD490BCC5C03 /* DashboardView.swift */; };
@@ -72,6 +73,7 @@
 		7DBC95EA88EAE5C1F9F20BE1 /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
 		87A766676281AD490BCC5C03 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		8E27632E8D03F20068905247 /* VersionsByRevenueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionsByRevenueView.swift; sourceTree = "<group>"; };
+		A4BDCA918158CCBAD13B37DB /* AuthKey_597FS4329D.p8 */ = {isa = PBXFileReference; path = AuthKey_597FS4329D.p8; sourceTree = "<group>"; };
 		A74638F7AE881A6C9E364041 /* AnalyticsModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsModels.swift; sourceTree = "<group>"; };
 		AA17D7A287B87912D85610B5 /* JWTService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JWTService.swift; sourceTree = "<group>"; };
 		BDEDDC410D95BE43CCA5A749 /* FirestoreService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirestoreService.swift; sourceTree = "<group>"; };
@@ -145,6 +147,7 @@
 			children = (
 				DB56C9BE77E14CB914DD3DA4 /* AppStoreConnectConfig.json */,
 				78A2EDB85A6B565049DC4015 /* Assets.xcassets */,
+				A4BDCA918158CCBAD13B37DB /* AuthKey_597FS4329D.p8 */,
 				130F3C8DB5EE3E5D027413D1 /* GoogleService-Info.plist */,
 				3FAEBBDAB8BED39EB2BB3BA7 /* ResortViewerServiceAccount.json */,
 				D67DA9BFF6819D0435780CDE /* ServiceAccount.json */,
@@ -254,6 +257,7 @@
 			files = (
 				DD14AA131C76A2484D895937 /* AppStoreConnectConfig.json in Resources */,
 				BEDD7AE25792E5FC72E8F2CB /* Assets.xcassets in Resources */,
+				BDED4D9EC816AEEF01021A0D /* AuthKey_597FS4329D.p8 in Resources */,
 				E4BA5555D6AE98104D6445BD /* GoogleService-Info.plist in Resources */,
 				66F4E06AA5ACE668D58B4962 /* ResortViewerServiceAccount.json in Resources */,
 				4622AA96D7EEE35A3BDF4973 /* ServiceAccount.json in Resources */,

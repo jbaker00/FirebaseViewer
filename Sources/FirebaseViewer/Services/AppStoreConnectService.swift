@@ -26,7 +26,6 @@ final class AppStoreConnectService: ObservableObject {
     // Default identifiers (not secret — the .p8 private key is the secret)
     private static let defaultKeyID    = "597FS4329D"
     private static let defaultIssuerID = "69a6de71-bcfd-47e3-e053-5b8c7c11a4d1"
-    private static let defaultKeyPath  = "~/.appstoreconnect/AuthKey_597FS4329D.p8"
 
     // MARK: - Configuration
 
@@ -39,7 +38,7 @@ final class AppStoreConnectService: ObservableObject {
     }
 
     private func loadOrSeedCredentials() {
-        // Try Keychain first
+        // Try Keychain first (fastest path after first launch)
         if let kid  = KeychainService.load(Self.keychainKeyID),
            let iid  = KeychainService.load(Self.keychainIssuerID),
            let pkey = KeychainService.load(Self.keychainPrivateKey),
@@ -51,10 +50,10 @@ final class AppStoreConnectService: ObservableObject {
             return
         }
 
-        // First launch — read .p8 from disk and seed Keychain
-        let expandedPath = (Self.defaultKeyPath as NSString).expandingTildeInPath
-        guard let pem = try? String(contentsOfFile: expandedPath, encoding: .utf8) else {
-            AppLogger.error("Could not read .p8 key at: \(expandedPath)", tag: "ASC")
+        // First launch — read bundled .p8 resource and seed Keychain
+        guard let keyURL = Bundle.main.url(forResource: "AuthKey_\(Self.defaultKeyID)", withExtension: "p8"),
+              let pem = try? String(contentsOf: keyURL, encoding: .utf8) else {
+            AppLogger.error("AuthKey_\(Self.defaultKeyID).p8 not found in bundle", tag: "ASC")
             return
         }
 
@@ -65,7 +64,7 @@ final class AppStoreConnectService: ObservableObject {
         KeychainService.save(Self.keychainKeyID,      value: keyID)
         KeychainService.save(Self.keychainIssuerID,   value: issuerID)
         KeychainService.save(Self.keychainPrivateKey, value: privateKeyPEM)
-        AppLogger.log("App Store Connect seeded into Keychain (Key: \(keyID))", tag: "ASC")
+        AppLogger.log("App Store Connect seeded into Keychain from bundle (Key: \(keyID))", tag: "ASC")
     }
 
     // MARK: - Public
