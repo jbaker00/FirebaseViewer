@@ -24,11 +24,12 @@ final class AppStoreConnectService: ObservableObject {
     private static let keychainKeyID       = "asc_key_id"
     private static let keychainIssuerID    = "asc_issuer_id"
     private static let keychainPrivateKey  = "asc_private_key_pem"
-    private static let keychainVendorNumber = "asc_vendor_number"
+    private static let keychainVendorNumber = "asc_vendor_number_v2"
 
     // Default identifiers (not secret — the .p8 private key is the secret)
-    private static let defaultKeyID    = "597FS4329D"
-    private static let defaultIssuerID = "69a6de71-bcfd-47e3-e053-5b8c7c11a4d1"
+    private static let defaultKeyID       = "597FS4329D"
+    private static let defaultIssuerID    = "69a6de71-bcfd-47e3-e053-5b8c7c11a4d1"
+    private static let defaultVendorNumber = "83866591"
 
     // MARK: - Configuration
 
@@ -64,10 +65,12 @@ final class AppStoreConnectService: ObservableObject {
         keyID         = Self.defaultKeyID
         issuerID      = Self.defaultIssuerID
         privateKeyPEM = pem
+        vendorNumber  = Self.defaultVendorNumber
 
-        KeychainService.save(Self.keychainKeyID,      value: keyID)
-        KeychainService.save(Self.keychainIssuerID,   value: issuerID)
-        KeychainService.save(Self.keychainPrivateKey, value: privateKeyPEM)
+        KeychainService.save(Self.keychainKeyID,       value: keyID)
+        KeychainService.save(Self.keychainIssuerID,    value: issuerID)
+        KeychainService.save(Self.keychainPrivateKey,  value: privateKeyPEM)
+        KeychainService.save(Self.keychainVendorNumber, value: vendorNumber)
         AppLogger.log("App Store Connect seeded into Keychain from bundle (Key: \(keyID))", tag: "ASC")
     }
 
@@ -82,13 +85,6 @@ final class AppStoreConnectService: ObservableObject {
 
         do {
             let token = try getToken()
-
-            // Auto-discover vendor number on first use
-            if vendorNumber.isEmpty {
-                vendorNumber = try await discoverVendorNumber(token: token)
-                KeychainService.save(Self.keychainVendorNumber, value: vendorNumber)
-                AppLogger.log("Discovered vendor number: \(vendorNumber)", tag: "ASC")
-            }
 
             apps = try await fetchApps(token: token)
             AppLogger.log("Fetched \(apps.count) apps from App Store Connect", tag: "ASC")
@@ -179,45 +175,6 @@ final class AppStoreConnectService: ObservableObject {
 
         AppLogger.log("Fetched \(allReports.count) report rows over \(days) days", tag: "ASC")
         return allReports
-    }
-
-    /// Discovers the vendor number by making a probe API call and parsing Apple's error response.
-    private func discoverVendorNumber(token: String) async throws -> String {
-        var components = URLComponents(string: "https://api.appstoreconnect.apple.com/v1/salesReports")!
-        components.queryItems = [
-            URLQueryItem(name: "filter[frequency]",     value: "DAILY"),
-            URLQueryItem(name: "filter[reportDate]",    value: "2024-01-01"),
-            URLQueryItem(name: "filter[reportSubType]", value: "SUMMARY"),
-            URLQueryItem(name: "filter[reportType]",    value: "SALES"),
-            URLQueryItem(name: "filter[vendorNumber]",  value: "0")
-        ]
-
-        var request = URLRequest(url: components.url!)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-
-        let (data, _) = try await URLSession.shared.data(for: request)
-
-        // Apple returns the valid vendor number(s) in the error detail
-        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let errors = json["errors"] as? [[String: Any]] {
-            for errorObj in errors {
-                let detail = (errorObj["detail"] as? String) ?? ""
-                let title  = (errorObj["title"]  as? String) ?? ""
-                let text   = detail + " " + title
-                AppLogger.log("ASC vendor probe response: \(text)", tag: "ASC")
-
-                // Extract any 5-10 digit number from the error text
-                let regex = try? NSRegularExpression(pattern: "\\b(\\d{5,10})\\b")
-                let range = NSRange(text.startIndex..., in: text)
-                if let match = regex?.firstMatch(in: text, range: range),
-                   let r = Range(match.range(at: 1), in: text) {
-                    return String(text[r])
-                }
-            }
-        }
-
-        throw ASCError.vendorNumberNotFound
     }
 
     private func apiRequest(url: URL, token: String) async throws -> Data {
@@ -370,14 +327,12 @@ enum ASCError: LocalizedError {
     case signingFailed(String)
     case encodingFailed
     case notConfigured
-    case vendorNumberNotFound
 
     var errorDescription: String? {
         switch self {
         case .signingFailed(let msg):  return "JWT signing failed: \(msg)"
         case .encodingFailed:          return "UTF-8 encoding failed."
         case .notConfigured:           return "App Store Connect is not configured."
-        case .vendorNumberNotFound:    return "Could not discover your App Store vendor number. Find it in App Store Connect → Sales and Trends → Reports → View Vendor Numbers."
         }
     }
 }
