@@ -20,7 +20,7 @@ struct FirebaseProject: Identifiable, Equatable {
     var hasAnalytics: Bool { ga4PropertyID != nil }
     var hasFirestore: Bool { firestoreProjectID != nil }
 
-    enum ProjectColor: String {
+    enum ProjectColor: String, Codable {
         case orange, blue, purple, green, red
 
         var color: Color {
@@ -34,7 +34,14 @@ struct FirebaseProject: Identifiable, Equatable {
         }
     }
 
-    static let all: [FirebaseProject] = [
+    /// Returns user-configured projects, falling back to bundled defaults if none configured.
+    static var all: [FirebaseProject] {
+        let userProjects = ConfigurationService.shared.projects
+        return userProjects.isEmpty ? bundledDefaults : userProjects
+    }
+
+    /// Built-in project definitions for backwards compatibility when no user config exists.
+    static let bundledDefaults: [FirebaseProject] = [
         FirebaseProject(
             id: "allApps",
             name: "All Apps",

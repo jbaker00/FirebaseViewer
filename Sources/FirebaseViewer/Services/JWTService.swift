@@ -15,10 +15,20 @@ struct JWTService {
         let token_uri: String
     }
 
-    /// Fetch an access token from `ServiceAccount.json` with analytics.readonly scope.
+    /// Fetch an access token, preferring user-provided service account from Keychain,
+    /// falling back to bundled `ServiceAccount.json`.
     static func accessToken() async throws -> String {
-        try await accessToken(resource: "ServiceAccount",
-                              scope: "https://www.googleapis.com/auth/analytics.readonly")
+        try await accessToken(scope: "https://www.googleapis.com/auth/analytics.readonly")
+    }
+
+    /// Fetch an access token using user-provided or bundled SA with the given OAuth scope.
+    static func accessToken(scope: String) async throws -> String {
+        // Prefer user-provided service account from Keychain
+        if let json = ConfigurationService.shared.loadServiceAccountJSON() {
+            return try await accessToken(fromJSON: json, scope: scope)
+        }
+        // Fall back to bundled resource
+        return try await accessToken(resource: "ServiceAccount", scope: scope)
     }
 
     /// Fetch an access token using an arbitrary bundled SA JSON resource and OAuth scope.
