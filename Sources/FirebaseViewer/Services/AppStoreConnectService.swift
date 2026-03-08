@@ -33,7 +33,7 @@ final class AppStoreConnectService: ObservableObject {
         loadOrSeedCredentials()
         isConfigured = !keyID.isEmpty && !issuerID.isEmpty && !privateKeyPEM.isEmpty
         if !isConfigured {
-            error = "App Store Connect credentials not found. Ensure the .p8 key exists at \(Self.defaultKeyPath)."
+            error = "App Store Connect credentials not found. Ensure AuthKey_\(Self.defaultKeyID).p8 is in the app Resources."
         }
     }
 
