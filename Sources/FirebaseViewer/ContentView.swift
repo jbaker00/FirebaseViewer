@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var analytics = AnalyticsService()
     @StateObject private var admob = AdMobService()
+    @StateObject private var appStore = AppStoreConnectService()
 
     var body: some View {
         TabView {
@@ -18,6 +19,12 @@ struct ContentView: View {
                 .tabItem { Label("User Map",     systemImage: "person.3.fill") }
             AppVersionsView()
                 .tabItem { Label("Versions",     systemImage: "app.badge.fill") }
+            DownloadsView()
+                .tabItem { Label("Downloads",    systemImage: "arrow.down.circle.fill") }
+            AppStoreMapView()
+                .tabItem { Label("Store Map",    systemImage: "map.circle.fill") }
+            AppStoreStatsView()
+                .tabItem { Label("App Store",    systemImage: "bag.fill") }
             DatabaseView()
                 .tabItem { Label("Database",     systemImage: "cylinder.split.1x2") }
             ErrorLogsView()
@@ -27,10 +34,13 @@ struct ContentView: View {
         }
         .environmentObject(analytics)
         .environmentObject(admob)
+        .environmentObject(appStore)
         .task {
+            appStore.configure()
             async let analyticsLoad: () = analytics.loadAll()
             async let admobLoad: ()     = admob.loadStats()
-            _ = await (analyticsLoad, admobLoad)
+            async let ascLoad: ()       = appStore.loadAll()
+            _ = await (analyticsLoad, admobLoad, ascLoad)
         }
     }
 }

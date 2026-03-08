@@ -23,6 +23,9 @@ GoogleService-Info.plist
 ServiceAccount.json
 ResortViewerServiceAccount.json
 
+# App Store Connect secrets
+AppStoreConnectConfig.json
+
 # macOS
 .DS_Store
 .AppleDouble

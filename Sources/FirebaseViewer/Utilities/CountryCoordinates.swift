@@ -7,6 +7,12 @@ enum CountryCoordinates {
         return table[country]
     }
 
+    /// Look up coordinates by ISO 3166-1 alpha-2 country code.
+    static func coordinateFromISO(_ code: String) -> (lat: Double, lng: Double)? {
+        guard let name = isoCodeTable[code.uppercased()] else { return nil }
+        return table[name]
+    }
+
     /// ISO 3166-1 alpha-2 code → full country name (for AdMob country dimension)
     static let isoCodeTable: [String: String] = [
         "AF": "Afghanistan", "AL": "Albania", "DZ": "Algeria", "AD": "Andorra",
