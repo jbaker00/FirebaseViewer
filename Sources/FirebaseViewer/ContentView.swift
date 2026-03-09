@@ -18,6 +18,8 @@ struct ContentView: View {
                 .tabItem { Label("User Map",     systemImage: "person.3.fill") }
             AppVersionsView()
                 .tabItem { Label("Versions",     systemImage: "app.badge.fill") }
+            AppStoreDownloadsView()
+                .tabItem { Label("Downloads",    systemImage: "arrow.down.app.fill") }
             DatabaseView()
                 .tabItem { Label("Database",     systemImage: "cylinder.split.1x2") }
             ErrorLogsView()
