@@ -2,6 +2,8 @@ import SwiftUI
 
 struct AdMobView: View {
     @EnvironmentObject private var service: AdMobService
+    @State private var showEditPaidOutSheet = false
+    @State private var editPaidOutText = ""
 
     var body: some View {
         NavigationStack {
@@ -22,6 +24,9 @@ struct AdMobView: View {
             .background(Color(.systemGroupedBackground))
             .refreshable {
                 if service.isAuthorized { await service.loadStats() }
+            }
+            .sheet(isPresented: $showEditPaidOutSheet) {
+                editPaidOutSheetView
             }
         }
     }
@@ -71,6 +76,9 @@ struct AdMobView: View {
     private var statsView: some View {
         ScrollView {
             VStack(spacing: 20) {
+                // Summary cards at the top
+                summaryCards
+
                 ForEach(service.multiPeriodReports, id: \.label) { report in
                     periodCard(report)
                 }
@@ -83,6 +91,97 @@ struct AdMobView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
         }
+    }
+
+    // MARK: - Summary cards
+
+    private var summaryCards: some View {
+        HStack(spacing: 12) {
+            // Paid Out card
+            summaryBox(
+                title: "Paid Out",
+                amount: service.stats.paidOut,
+                color: .green,
+                icon: "checkmark.circle.fill",
+                showEditButton: true
+            )
+
+            // To Be Collected card
+            summaryBox(
+                title: "To Be Collected",
+                amount: service.stats.unpaidEarnings,
+                color: .green,
+                icon: "dollarsign.circle.fill",
+                showEditButton: false
+            )
+        }
+    }
+
+    private func summaryBox(title: String, amount: Double, color: Color, icon: String, showEditButton: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header with title and optional edit button
+            HStack {
+                Label(title, systemImage: icon)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                Spacer()
+                if showEditButton {
+                    Button {
+                        showEditPaidOutSheet = true
+                    } label: {
+                        Image(systemName: "pencil.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.white.opacity(0.9))
+                    }
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
+
+            // Amount
+            Text(String(format: "$%.2f", amount))
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .padding(.horizontal, 14)
+                .padding(.bottom, 12)
+
+            // App breakdown for "To Be Collected"
+            if !showEditButton && !service.allTimeAppStats.isEmpty {
+                Divider()
+                    .background(Color.white.opacity(0.3))
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("By App")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.8))
+                        .padding(.horizontal, 14)
+                        .padding(.top, 8)
+
+                    ForEach(service.allTimeAppStats.prefix(3)) { app in
+                        HStack {
+                            Text(app.appName)
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.9))
+                                .lineLimit(1)
+                            Spacer()
+                            Text(String(format: "$%.2f", app.earnings))
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.white)
+                                .monospacedDigit()
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 2)
+                    }
+                }
+                .padding(.bottom, 8)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .background(color.gradient)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
     }
 
     // MARK: - Period card
@@ -236,5 +335,73 @@ struct AdMobView: View {
         if n >= 1_000_000 { return String(format: "%.1fM", Double(n) / 1_000_000) }
         if n >= 1_000     { return String(format: "%.1fK", Double(n) / 1_000) }
         return "\(n)"
+    }
+
+    // MARK: - Edit paid out sheet
+
+    private var editPaidOutSheetView: some View {
+        NavigationStack {
+            VStack(spacing: 24) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Current Paid Out Amount")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Text(String(format: "$%.2f", service.paidOutAmount))
+                        .font(.title.bold())
+                        .foregroundStyle(.green)
+                        .monospacedDigit()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+                .background(Color(.secondarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("New Amount")
+                        .font(.headline)
+
+                    HStack {
+                        Text("$")
+                            .font(.title2)
+                            .foregroundStyle(.secondary)
+                        TextField("0.00", text: $editPaidOutText)
+                            .keyboardType(.decimalPad)
+                            .font(.title2)
+                            .textFieldStyle(.plain)
+                    }
+                    .padding()
+                    .background(Color(.secondarySystemGroupedBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                    Text("Enter the total amount that has been paid out to you from AdMob.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Edit Paid Out")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        showEditPaidOutSheet = false
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        if let amount = Double(editPaidOutText) {
+                            service.updatePaidOutAmount(amount)
+                        }
+                        showEditPaidOutSheet = false
+                    }
+                    .disabled(editPaidOutText.isEmpty || Double(editPaidOutText) == nil)
+                }
+            }
+            .onAppear {
+                editPaidOutText = String(format: "%.2f", service.paidOutAmount)
+            }
+        }
     }
 }

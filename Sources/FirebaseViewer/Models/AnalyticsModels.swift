@@ -143,6 +143,8 @@ struct AdMobStats {
     var impressions: Int = 0
     var clicks: Int = 0
     var ecpm: Double = 0
+    var paidOut: Double = 0              // Total amount paid out to date
+    var unpaidEarnings: Double = 0       // Amount to be collected (not yet paid)
 }
 
 struct AdMobAppStats: Identifiable {
