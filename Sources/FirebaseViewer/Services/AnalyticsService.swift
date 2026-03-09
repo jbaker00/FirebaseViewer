@@ -15,9 +15,17 @@ final class AnalyticsService: ObservableObject {
 
     // Separate cache per property
     private var tokenCache: [String: (token: String, expiry: Date)] = [:]
+    /// Seconds before a token is considered expired and re-fetched.
+    private let tokenExpiryBuffer: TimeInterval = 3500
 
-    init() {
+    /// Injected Google Sign-In service. When the user is signed in this takes
+    /// priority over the bundled service-account JSON, eliminating the need for
+    /// `gcloud` or a service-account key file.
+    private let googleSignIn: GoogleSignInService?
+
+    init(googleSignIn: GoogleSignInService? = nil) {
         self.selectedProject = FirebaseProject.all[0]
+        self.googleSignIn = googleSignIn
     }
 
     // MARK: - Public
@@ -42,7 +50,8 @@ final class AnalyticsService: ObservableObject {
 
         // Firestore fetch (ResortViewer only)
         if let firestoreProjectID = selectedProject.firestoreProjectID {
-            async let fsTask = FirestoreService.fetchCollectionStats(projectID: firestoreProjectID)
+            let fsToken = try? await googleToken()
+            async let fsTask = FirestoreService.fetchCollectionStats(projectID: firestoreProjectID, accessToken: fsToken)
             // GA4 analytics fetch
             if let propertyID = selectedProject.ga4PropertyID {
                 let streamFilter = selectedProject.streamIDs.map { RunReportRequest.streamFilter(ids: $0) }
@@ -98,12 +107,29 @@ final class AnalyticsService: ObservableObject {
 
     // MARK: - Auth
 
+    /// Returns a Google Sign-In access token when the user is signed in, or nil otherwise.
+    private func googleToken() async throws -> String? {
+        guard let googleSignIn, googleSignIn.isSignedIn else { return nil }
+        return try await googleSignIn.getAccessToken()
+    }
+
     private func getToken(forProperty propertyID: String) async throws -> String {
+        // Prefer Google Sign-In OAuth token when the user is signed in.
+        if let googleSignIn, googleSignIn.isSignedIn {
+            do {
+                let token = try await googleSignIn.getAccessToken()
+                tokenCache[propertyID] = (token, Date().addingTimeInterval(tokenExpiryBuffer))
+                return token
+            } catch {
+                AppLogger.error("Google Sign-In token fetch failed, falling back to SA: \(error.localizedDescription)", tag: "GA4")
+            }
+        }
+        // Fall back to the bundled service-account JWT (legacy / developer use).
         if let cached = tokenCache[propertyID], Date() < cached.expiry {
             return cached.token
         }
         let token = try await JWTService.accessToken()
-        tokenCache[propertyID] = (token, Date().addingTimeInterval(3500))
+        tokenCache[propertyID] = (token, Date().addingTimeInterval(tokenExpiryBuffer))
         return token
     }
 

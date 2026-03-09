@@ -12,6 +12,14 @@ final class ErrorLogsService: ObservableObject {
 
     private let projects = FirebaseProject.all.filter { $0.id != "allApps" && $0.gcpProjectID != nil }
 
+    /// Injected Google Sign-In service. When the user is signed in this takes
+    /// priority over the bundled service-account JSON.
+    private let googleSignIn: GoogleSignInService?
+
+    init(googleSignIn: GoogleSignInService? = nil) {
+        self.googleSignIn = googleSignIn
+    }
+
     /// Fetch error logs from Cloud Logging API for all Firebase projects
     func loadErrorLogs(daysBack: Int = 7, groqOnly: Bool = false) async {
         guard !isLoading else { return }
@@ -20,10 +28,17 @@ final class ErrorLogsService: ObservableObject {
         defer { isLoading = false }
 
         do {
-            let token = try await JWTService.accessToken(
-                resource: "ServiceAccount",
-                scope: "https://www.googleapis.com/auth/logging.read"
-            )
+            let token: String
+            if let googleSignIn, googleSignIn.isSignedIn,
+               let oauthToken = try? await googleSignIn.getAccessToken() {
+                token = oauthToken
+                AppLogger.log("Using Google Sign-In token for Cloud Logging", tag: "ErrorLogs")
+            } else {
+                token = try await JWTService.accessToken(
+                    resource: "ServiceAccount",
+                    scope: "https://www.googleapis.com/auth/logging.read"
+                )
+            }
 
             var allEntries: [ErrorLogEntry] = []
 

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ErrorLogsView: View {
-    @StateObject private var service = ErrorLogsService()
+    @EnvironmentObject private var service: ErrorLogsService
     @EnvironmentObject private var analytics: AnalyticsService
     @State private var searchText = ""
     @State private var showGroqOnly = false

@@ -1,8 +1,21 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var analytics = AnalyticsService()
-    @StateObject private var admob = AdMobService()
+    @StateObject private var googleSignIn: GoogleSignInService
+    @StateObject private var analytics: AnalyticsService
+    @StateObject private var errorLogs: ErrorLogsService
+    @StateObject private var admob: AdMobService
+
+    // Analytics and ErrorLogs services share the GoogleSignInService instance so
+    // the user's OAuth token is preferred over any bundled service-account JSON,
+    // eliminating the need for gcloud or a service-account key file.
+    init() {
+        let signIn = GoogleSignInService()
+        _googleSignIn = StateObject(wrappedValue: signIn)
+        _analytics    = StateObject(wrappedValue: AnalyticsService(googleSignIn: signIn))
+        _errorLogs    = StateObject(wrappedValue: ErrorLogsService(googleSignIn: signIn))
+        _admob        = StateObject(wrappedValue: AdMobService())
+    }
 
     var body: some View {
         TabView {
@@ -24,9 +37,13 @@ struct ContentView: View {
                 .tabItem { Label("Errors",       systemImage: "exclamationmark.triangle.fill") }
             LogView()
                 .tabItem { Label("Logs",         systemImage: "scroll.fill") }
+            SettingsView()
+                .tabItem { Label("Settings",     systemImage: "gearshape.fill") }
         }
         .environmentObject(analytics)
         .environmentObject(admob)
+        .environmentObject(googleSignIn)
+        .environmentObject(errorLogs)
         .task {
             async let analyticsLoad: () = analytics.loadAll()
             async let admobLoad: ()     = admob.loadStats()

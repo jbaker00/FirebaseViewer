@@ -5,11 +5,13 @@ struct FirestoreService {
 
     private static var cachedToken: String?
     private static var tokenExpiry: Date = .distantPast
+    /// Seconds before a Google OAuth / service-account token is treated as expired.
+    private static let tokenExpiryBuffer: TimeInterval = 3500
 
     // MARK: - Public
 
-    static func fetchCollectionStats(projectID: String, serviceAccountJSON: String? = nil) async throws -> [FirestoreCollectionStats] {
-        let token = try await getToken(serviceAccountJSON: serviceAccountJSON)
+    static func fetchCollectionStats(projectID: String, serviceAccountJSON: String? = nil, accessToken: String? = nil) async throws -> [FirestoreCollectionStats] {
+        let token = try await getToken(serviceAccountJSON: serviceAccountJSON, accessToken: accessToken)
         let collections = try await listCollections(projectID: projectID, token: token)
         return try await withThrowingTaskGroup(of: FirestoreCollectionStats.self) { group in
             for name in collections {
@@ -28,7 +30,13 @@ struct FirestoreService {
 
     // MARK: - Private helpers
 
-    private static func getToken(serviceAccountJSON: String?) async throws -> String {
+    private static func getToken(serviceAccountJSON: String?, accessToken: String? = nil) async throws -> String {
+        // If a pre-fetched OAuth access token was provided (e.g., from Google Sign-In), use it directly.
+        if let token = accessToken {
+            cachedToken = token
+            tokenExpiry = Date().addingTimeInterval(tokenExpiryBuffer)
+            return token
+        }
         if let t = cachedToken, Date() < tokenExpiry { return t }
         let t: String
         if let json = serviceAccountJSON {
@@ -43,7 +51,7 @@ struct FirestoreService {
             )
         }
         cachedToken = t
-        tokenExpiry = Date().addingTimeInterval(3500)
+        tokenExpiry = Date().addingTimeInterval(tokenExpiryBuffer)
         return t
     }
 
