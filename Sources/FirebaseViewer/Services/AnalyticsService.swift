@@ -98,11 +98,22 @@ final class AnalyticsService: ObservableObject {
 
     // MARK: - Auth
 
+    /// Clears the in-memory token cache (e.g. after the user changes their service account).
+    func clearTokenCache() {
+        tokenCache.removeAll()
+    }
+
     private func getToken(forProperty propertyID: String) async throws -> String {
         if let cached = tokenCache[propertyID], Date() < cached.expiry {
             return cached.token
         }
-        let token = try await JWTService.accessToken()
+        let token: String
+        if let userJSON = KeychainService.load(UserProjectStore.saJSONKey), !userJSON.isEmpty {
+            token = try await JWTService.accessToken(fromJSON: userJSON,
+                                                     scope: "https://www.googleapis.com/auth/analytics.readonly")
+        } else {
+            token = try await JWTService.accessToken()
+        }
         tokenCache[propertyID] = (token, Date().addingTimeInterval(3500))
         return token
     }
