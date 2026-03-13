@@ -61,6 +61,7 @@ enum CountryCoordinates {
         "VE": "Venezuela", "VN": "Vietnam", "YE": "Yemen", "ZM": "Zambia", "ZW": "Zimbabwe",
         "KR": "South Korea", "PS": "Palestine", "PR": "Puerto Rico",
         "CW": "Curaçao", "TC": "Turks and Caicos Islands",
+        "SX": "Sint Maarten",
     ]
 
     // swiftlint:disable line_length
@@ -117,6 +118,7 @@ enum CountryCoordinates {
         "Zambia": (-13.13, 27.85),
         "Curaçao": (12.17, -68.99),
         "Turks and Caicos Islands": (21.82, -71.80),
+        "Sint Maarten": (18.04, -63.06),
         "Albania": (41.15, 20.17),
         "Algeria": (28.03, 1.66),
         "Andorra": (42.54, 1.60),

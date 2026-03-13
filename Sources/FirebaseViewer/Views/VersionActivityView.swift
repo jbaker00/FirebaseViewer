@@ -83,42 +83,33 @@ struct VersionActivityView: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal)
             } else {
-                Chart {
-                    ForEach(analytics.dailyActivityStats) { day in
-                        BarMark(
-                            x: .value("Date", day.date, unit: .day),
-                            y: .value("Sessions", day.sessions),
-                            width: .ratio(0.4)
-                        )
-                        .foregroundStyle(.blue.gradient)
-                        .offset(x: -12)
-
-                        BarMark(
-                            x: .value("Date", day.date, unit: .day),
-                            y: .value("Events", day.eventCount),
-                            width: .ratio(0.4)
-                        )
-                        .foregroundStyle(.green.gradient)
-                        .offset(x: 12)
+                // Flatten daily stats into two series for grouped bars
+                let chartData: [(date: Date, value: Int, metric: String)] =
+                    analytics.dailyActivityStats.flatMap { day in
+                        [(day.date, day.sessions, "Sessions"),
+                         (day.date, day.eventCount, "Events")]
                     }
+
+                Chart(chartData, id: \.metric) { item in
+                    BarMark(
+                        x: .value("Date", item.date, unit: .day),
+                        y: .value("Count", item.value)
+                    )
+                    .foregroundStyle(by: .value("Metric", item.metric))
+                    .position(by: .value("Metric", item.metric))
+                    .cornerRadius(3)
                 }
+                .chartForegroundStyleScale([
+                    "Sessions": Color.blue,
+                    "Events":   Color.green
+                ])
                 .chartXAxis {
-                    AxisMarks(values: .stride(by: .day)) { value in
+                    AxisMarks(values: .stride(by: .day)) { _ in
                         AxisGridLine()
                         AxisValueLabel(format: .dateTime.weekday(.abbreviated), centered: true)
                     }
                 }
-                .chartYAxisLabel("Count")
-                .chartLegend(position: .bottom) {
-                    HStack(spacing: 16) {
-                        Label("Sessions", systemImage: "circle.fill")
-                            .foregroundStyle(.blue)
-                            .font(.caption)
-                        Label("Events", systemImage: "circle.fill")
-                            .foregroundStyle(.green)
-                            .font(.caption)
-                    }
-                }
+                .chartLegend(position: .bottom, alignment: .center, spacing: 12)
                 .frame(height: 240)
                 .padding(.horizontal)
             }

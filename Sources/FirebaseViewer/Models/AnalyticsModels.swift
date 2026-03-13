@@ -164,6 +164,12 @@ struct AdMobStats {
     var ecpm: Double = 0
 }
 
+struct AdMobDailyStats: Identifiable {
+    let id = UUID()
+    let date: Date
+    let earnings: Double
+}
+
 struct AdMobAppStats: Identifiable {
     let id = UUID()
     let appName: String
