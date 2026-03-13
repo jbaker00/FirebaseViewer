@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -97,7 +97,7 @@
 		084EE78CF46C11F194B5B3C8 /* CountryCoordinates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountryCoordinates.swift; sourceTree = "<group>"; };
 		0BEE9E5C0D2407715C04635A /* LogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogView.swift; sourceTree = "<group>"; };
 		1096459A59AC8750EEE7D9E4 /* FirebaseViewerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseViewerApp.swift; sourceTree = "<group>"; };
-		120A3292AA723E86EBA791B3 /* FirebaseViewer.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FirebaseViewer.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		120A3292AA723E86EBA791B3 /* FirebaseViewer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FirebaseViewer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		130F3C8DB5EE3E5D027413D1 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		18FB4EF4AAB4840E96756FC0 /* AppStoreConnectModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreConnectModels.swift; sourceTree = "<group>"; };
 		2AF588988D7816FA326CAE0A /* MapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapView.swift; sourceTree = "<group>"; };
@@ -119,7 +119,7 @@
 		81BA67CDD8DFDCBF95C53E77 /* macOS-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "macOS-Info.plist"; sourceTree = "<group>"; };
 		87A766676281AD490BCC5C03 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		8E27632E8D03F20068905247 /* VersionsByRevenueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionsByRevenueView.swift; sourceTree = "<group>"; };
-		A4BDCA918158CCBAD13B37DB /* AuthKey_597FS4329D.p8 */ = {isa = PBXFileReference; path = AuthKey_597FS4329D.p8; sourceTree = "<group>"; };
+		A4BDCA918158CCBAD13B37DB /* AuthKey_597FS4329D.p8 */ = {isa = PBXFileReference; lastKnownFileType = text; path = AuthKey_597FS4329D.p8; sourceTree = "<group>"; };
 		A74638F7AE881A6C9E364041 /* AnalyticsModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsModels.swift; sourceTree = "<group>"; };
 		AA17D7A287B87912D85610B5 /* JWTService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JWTService.swift; sourceTree = "<group>"; };
 		BDEDDC410D95BE43CCA5A749 /* FirestoreService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirestoreService.swift; sourceTree = "<group>"; };
@@ -300,7 +300,6 @@
 						ProvisioningStyle = Automatic;
 					};
 					D2BEF0D42A1CDAA5059A15C7 = {
-						DevelopmentTeam = 4PDB3TQD2G;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -315,7 +314,6 @@
 			);
 			mainGroup = 48FFE821746444DAC98DC516;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -448,6 +446,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = G3P9A8Z2NP;
 				INFOPLIST_FILE = Sources/FirebaseViewer/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -638,6 +637,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = G3P9A8Z2NP;
 				INFOPLIST_FILE = Sources/FirebaseViewer/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
