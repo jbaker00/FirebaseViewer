@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 struct AdMobView: View {
     @EnvironmentObject private var service: AdMobService
@@ -73,6 +74,10 @@ struct AdMobView: View {
     private var statsView: some View {
         ScrollView {
             VStack(spacing: 20) {
+                if !service.sevenDayDailyEarnings.isEmpty {
+                    revenueChart
+                }
+
                 ForEach(service.multiPeriodReports, id: \.label) { report in
                     periodCard(report)
                 }
@@ -85,6 +90,56 @@ struct AdMobView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
         }
+    }
+
+    // MARK: - 7-day revenue chart
+
+    private var revenueChart: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Last 7 Days")
+                    .font(.title3.bold())
+                Spacer()
+                let total = service.sevenDayDailyEarnings.reduce(0) { $0 + $1.earnings }
+                Text(String(format: "$%.2f", total))
+                    .font(.title2.bold())
+                    .foregroundStyle(.green)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+
+            Chart(service.sevenDayDailyEarnings) { day in
+                BarMark(
+                    x: .value("Date", day.date, unit: .day),
+                    y: .value("Revenue", day.earnings)
+                )
+                .foregroundStyle(Color.green.gradient)
+                .cornerRadius(4)
+            }
+            .chartXAxis {
+                AxisMarks(values: .stride(by: .day)) { _ in
+                    AxisGridLine()
+                    AxisValueLabel(format: .dateTime.weekday(.abbreviated), centered: true)
+                }
+            }
+            .chartYAxis {
+                AxisMarks { value in
+                    AxisGridLine()
+                    AxisValueLabel {
+                        if let v = value.as(Double.self) {
+                            Text(String(format: "$%.2f", v))
+                                .font(.caption2)
+                        }
+                    }
+                }
+            }
+            .frame(height: 200)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 14)
+        }
+        .background(Color.platformSystemBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: Color.black.opacity(0.10), radius: 6, x: 0, y: 2)
     }
 
     // MARK: - Period card

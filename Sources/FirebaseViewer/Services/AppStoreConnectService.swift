@@ -1,6 +1,7 @@
 import Foundation
 import Security
 import CryptoKit
+import zlib
 
 // MARK: - App Store Connect API Service
 
@@ -200,10 +201,41 @@ final class AppStoreConnectService: ObservableObject {
         return data
     }
 
+    // MARK: - Gzip decompression (Apple Sales Reports are always gzip-compressed)
+
+    private func gunzip(_ data: Data) -> Data? {
+        guard data.count > 2, data[0] == 0x1f, data[1] == 0x8b else { return nil }
+        var stream = z_stream()
+        // windowBits 47 = 16 + MAX_WBITS tells zlib to expect gzip wrapper
+        guard inflateInit2_(&stream, 47, ZLIB_VERSION,
+                            Int32(MemoryLayout<z_stream>.size)) == Z_OK else { return nil }
+        defer { inflateEnd(&stream) }
+
+        var output = Data()
+        let chunkSize = 65_536
+
+        data.withUnsafeBytes { raw in
+            stream.next_in  = UnsafeMutablePointer(mutating: raw.bindMemory(to: Bytef.self).baseAddress!)
+            stream.avail_in = uInt(data.count)
+            var buf = [Bytef](repeating: 0, count: chunkSize)
+            repeat {
+                buf.withUnsafeMutableBufferPointer { ptr in
+                    stream.next_out  = ptr.baseAddress
+                    stream.avail_out = uInt(chunkSize)
+                    inflate(&stream, Z_NO_FLUSH)
+                    let written = chunkSize - Int(stream.avail_out)
+                    output.append(contentsOf: ptr[0..<written])
+                }
+            } while stream.avail_out == 0
+        }
+        return output.isEmpty ? nil : output
+    }
+
     // MARK: - Parse TSV sales report
 
     private func parseSalesReport(data: Data, date: Date) -> [AppStoreConnectSalesReport] {
-        guard let text = String(data: data, encoding: .utf8) else { return [] }
+        let raw = gunzip(data) ?? data
+        guard let text = String(data: raw, encoding: .utf8) else { return [] }
         let lines = text.components(separatedBy: "\n")
         guard lines.count > 1 else { return [] }
 

@@ -4,6 +4,7 @@ import SwiftUI
 
 enum VersionsTab: String, CaseIterable, Identifiable {
     case grouped   = "Grouped"
+    case activity  = "Activity"
     case location  = "Location"
     case revenue   = "Revenue"
     case health    = "Health"
@@ -84,6 +85,7 @@ struct AppVersionsView: View {
     private var tabContent: some View {
         switch selectedTab {
         case .grouped:  GroupedByVersionView()
+        case .activity: VersionActivityView()
         case .location: VersionsByLocationView()
         case .revenue:  VersionsByRevenueView()
         case .health:   VersionHealthView()

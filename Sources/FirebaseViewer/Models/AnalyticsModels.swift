@@ -12,6 +12,7 @@ struct RunReportRequest: Encodable {
     struct DateRange: Encodable {
         let startDate: String
         let endDate: String
+        var name: String?
     }
     struct Dimension: Encodable {
         let name: String
@@ -128,6 +129,24 @@ struct VersionCountryStats: Identifiable {
     let activeUsers: Int
 }
 
+struct VersionPeriodStats: Identifiable {
+    let id = UUID()
+    let version: String
+    let todaySessions: Int
+    let todayEvents: Int
+    let yesterdaySessions: Int
+    let yesterdayEvents: Int
+    let thirtyDaySessions: Int
+    let thirtyDayEvents: Int
+}
+
+struct DailyActivityStats: Identifiable {
+    let id = UUID()
+    let date: Date
+    let sessions: Int
+    let eventCount: Int
+}
+
 // MARK: - Firestore models
 
 struct FirestoreCollectionStats: Identifiable {
@@ -143,6 +162,12 @@ struct AdMobStats {
     var impressions: Int = 0
     var clicks: Int = 0
     var ecpm: Double = 0
+}
+
+struct AdMobDailyStats: Identifiable {
+    let id = UUID()
+    let date: Date
+    let earnings: Double
 }
 
 struct AdMobAppStats: Identifiable {

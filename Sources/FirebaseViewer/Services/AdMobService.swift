@@ -13,6 +13,7 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
     @Published var todayAppStats: [AdMobAppStats] = []    // today per-app
     @Published var countryStats: [AdMobCountryStats] = [] // all-time per-country
     @Published var multiPeriodReports: [AdMobPeriodReport] = [] // Today/Yesterday/7d/30d
+    @Published var sevenDayDailyEarnings: [AdMobDailyStats] = []
     @Published var isLoading = false
     @Published var hasData = false   // true once first successful load completes
     @Published var error: String?
@@ -113,30 +114,32 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
             let last7Start     = cal.date(byAdding: .day, value: -7,  to: todayStart)!
             let last30Start    = cal.date(byAdding: .day, value: -30, to: todayStart)!
 
-            async let thirtyDayTask  = fetchEarnings(publisherID: publisherID, token: token, daysBack: 30)
-            async let todayTask      = fetchEarnings(publisherID: publisherID, token: token, daysBack: 0)
-            async let countryTask    = fetchCountryEarnings(publisherID: publisherID, token: token)
-            async let todayPeriod    = fetchPeriodReport(publisherID: publisherID, token: token,
-                                                         label: "Today",
-                                                         startDate: todayStart, endDate: now)
+            async let thirtyDayTask   = fetchEarnings(publisherID: publisherID, token: token, daysBack: 30)
+            async let todayTask       = fetchEarnings(publisherID: publisherID, token: token, daysBack: 0)
+            async let countryTask     = fetchCountryEarnings(publisherID: publisherID, token: token)
+            async let dailyTask       = fetchDailyEarnings(publisherID: publisherID, token: token)
+            async let todayPeriod     = fetchPeriodReport(publisherID: publisherID, token: token,
+                                                          label: "Today",
+                                                          startDate: todayStart, endDate: now)
             async let yesterdayPeriod = fetchPeriodReport(publisherID: publisherID, token: token,
                                                           label: "Yesterday",
                                                           startDate: yesterdayStart, endDate: todayStart)
-            async let last7Period    = fetchPeriodReport(publisherID: publisherID, token: token,
-                                                         label: "Last 7 Days",
-                                                         startDate: last7Start, endDate: now)
-            async let last30Period   = fetchPeriodReport(publisherID: publisherID, token: token,
-                                                         label: "Last 30 Days",
-                                                         startDate: last30Start, endDate: now)
+            async let last7Period     = fetchPeriodReport(publisherID: publisherID, token: token,
+                                                          label: "Last 7 Days",
+                                                          startDate: last7Start, endDate: now)
+            async let last30Period    = fetchPeriodReport(publisherID: publisherID, token: token,
+                                                          label: "Last 30 Days",
+                                                          startDate: last30Start, endDate: now)
 
-            let ((totalStats, perApp), (todayStats, todayPerApp), countries,
-                 p0, p1, p2, p3) = try await (thirtyDayTask, todayTask, countryTask,
+            let ((totalStats, perApp), (todayStats, todayPerApp), countries, daily,
+                 p0, p1, p2, p3) = try await (thirtyDayTask, todayTask, countryTask, dailyTask,
                                                todayPeriod, yesterdayPeriod, last7Period, last30Period)
             self.stats = totalStats
             self.appStats = perApp
             self.todayEarnings = todayStats.totalEarnings
             self.todayAppStats = todayPerApp
             self.countryStats = countries.sorted { $0.earnings > $1.earnings }
+            self.sevenDayDailyEarnings = daily
             self.multiPeriodReports = [p0, p1, p2, p3]
             self.hasData = true
             AppLogger.log("AdMob today earnings: $\(String(format: "%.4f", todayStats.totalEarnings))", tag: "AdMob")
@@ -407,6 +410,57 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
         }
         AppLogger.log("AdMob country map: \(result.count) countries", tag: "AdMob")
         return result
+    }
+
+    // MARK: - Daily earnings for the last 7 days
+
+    private func fetchDailyEarnings(publisherID: String, token: String) async throws -> [AdMobDailyStats] {
+        let cal = Calendar(identifier: .gregorian)
+        let today = cal.startOfDay(for: Date())
+        let start = cal.date(byAdding: .day, value: -6, to: today)!
+
+        func dc(_ d: Date) -> [String: Int] {
+            let c = cal.dateComponents([.year, .month, .day], from: d)
+            return ["year": c.year!, "month": c.month!, "day": c.day!]
+        }
+
+        let url = URL(string: "https://admob.googleapis.com/v1/\(publisherID)/networkReport:generate")!
+        var req = admobRequest(url: url, token: token)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = [
+            "reportSpec": [
+                "dateRange": ["startDate": dc(start), "endDate": dc(today)],
+                "dimensions": ["DATE"],
+                "metrics": ["ESTIMATED_EARNINGS"],
+                "localizationSettings": ["currencyCode": "USD"]
+            ]
+        ]
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        guard let http = resp as? HTTPURLResponse, http.statusCode == 200,
+              let objects = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return []
+        }
+
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyyMMdd"
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        fmt.timeZone = TimeZone(identifier: "UTC")
+
+        var result: [AdMobDailyStats] = []
+        for obj in objects {
+            guard let row  = obj["row"]             as? [String: Any],
+                  let dims = row["dimensionValues"] as? [String: Any],
+                  let mets = row["metricValues"]    as? [String: Any],
+                  let dateStr = (dims["DATE"] as? [String: Any])?["value"] as? String,
+                  let date = fmt.date(from: dateStr) else { continue }
+            let earnings = microsDollar(from: mets, key: "ESTIMATED_EARNINGS")
+            result.append(AdMobDailyStats(date: date, earnings: earnings))
+        }
+        return result.sorted { $0.date < $1.date }
     }
 
     // MARK: - Multi-period report (Today / Yesterday / Last 7 Days / Last 30 Days)
