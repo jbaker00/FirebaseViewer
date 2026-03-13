@@ -22,6 +22,8 @@
 		604EE08547DFFB4DD878A6D8 /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53DED1B8B56801B85C1C28E4 /* AnalyticsService.swift */; };
 		6399E3676E6C94624B169844 /* FirebaseProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3965847DC52CFE199E5DD0 /* FirebaseProject.swift */; };
 		66F4E06AA5ACE668D58B4962 /* ResortViewerServiceAccount.json in Resources */ = {isa = PBXBuildFile; fileRef = 3FAEBBDAB8BED39EB2BB3BA7 /* ResortViewerServiceAccount.json */; };
+		6E6D64632F63DA7400DD5555 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E6D64622F63DA7400DD5555 /* SettingsView.swift */; };
+		6E6D64652F63DA8F00DD5555 /* GoogleSignInService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E6D64642F63DA8F00DD5555 /* GoogleSignInService.swift */; };
 		8069C2D1486AE68F259F79BD /* MapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AF588988D7816FA326CAE0A /* MapView.swift */; };
 		8AA096CF4FDA03F30DE4E348 /* CountryCoordinates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 084EE78CF46C11F194B5B3C8 /* CountryCoordinates.swift */; };
 		9A00EC96249B070CAA137111 /* DatabaseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C3775B5701C3890F87CB8BE /* DatabaseView.swift */; };
@@ -56,6 +58,8 @@
 		53DED1B8B56801B85C1C28E4 /* AnalyticsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsService.swift; sourceTree = "<group>"; };
 		65A25B943920AF057012BA17 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		689DF103E652A0D44870B7FA /* AppCountryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCountryView.swift; sourceTree = "<group>"; };
+		6E6D64622F63DA7400DD5555 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		6E6D64642F63DA8F00DD5555 /* GoogleSignInService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleSignInService.swift; sourceTree = "<group>"; };
 		783695D71780FF6CF4CB1F1E /* AppVersionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersionsView.swift; sourceTree = "<group>"; };
 		78A2EDB85A6B565049DC4015 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		7C3775B5701C3890F87CB8BE /* DatabaseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseView.swift; sourceTree = "<group>"; };
@@ -108,6 +112,8 @@
 		48FFE821746444DAC98DC516 = {
 			isa = PBXGroup;
 			children = (
+				6E6D64642F63DA8F00DD5555 /* GoogleSignInService.swift */,
+				6E6D64622F63DA7400DD5555 /* SettingsView.swift */,
 				C68533875DC08378022FE960 /* FirebaseViewer */,
 				3EC1B146C363C5527B9C9543 /* Products */,
 			);
@@ -264,6 +270,7 @@
 				6399E3676E6C94624B169844 /* FirebaseProject.swift in Sources */,
 				30AC2A43E7CE598C00C106F4 /* FirebaseViewerApp.swift in Sources */,
 				06262C8356CF39B0FA17876A /* FirestoreService.swift in Sources */,
+				6E6D64632F63DA7400DD5555 /* SettingsView.swift in Sources */,
 				58A9DEA2033CE3B054CA5D22 /* GroupedByVersionView.swift in Sources */,
 				EEDAA96A5EE78D4273D9DC4F /* JWTService.swift in Sources */,
 				5022650A77A79E48056C8DAC /* KeychainService.swift in Sources */,
@@ -271,6 +278,7 @@
 				8069C2D1486AE68F259F79BD /* MapView.swift in Sources */,
 				FF04B7210F526E3A2C39E364 /* StatsCardView.swift in Sources */,
 				3A6C87147D494DD42092F34E /* VersionAdoptionView.swift in Sources */,
+				6E6D64652F63DA8F00DD5555 /* GoogleSignInService.swift in Sources */,
 				1E16AEB158718010234E243D /* VersionHealthView.swift in Sources */,
 				F435E5293B0C1F4A729E64D6 /* VersionsByLocationView.swift in Sources */,
 				A8F991F005019098386DC905 /* VersionsByRevenueView.swift in Sources */,

@@ -23,6 +23,10 @@ GoogleService-Info.plist
 ServiceAccount.json
 ResortViewerServiceAccount.json
 
+# App Store Connect credentials — never commit these
+AppStoreConnectConfig.json
+*.p8
+
 # macOS
 .DS_Store
 .AppleDouble
