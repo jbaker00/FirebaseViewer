@@ -3,8 +3,32 @@ import Charts
 
 // MARK: - Sessions & Events per Version (Today / Yesterday / 30 Days) + 7-Day Chart
 
+private let activityDayFormatter: DateFormatter = {
+    let f = DateFormatter(); f.dateFormat = "EEE\nd"; return f
+}()
+
+private struct ActivityBar: Identifiable {
+    let id = UUID()
+    let label: String
+    let value: Int
+    let metric: String
+}
+
 struct VersionActivityView: View {
     @EnvironmentObject private var analytics: AnalyticsService
+
+    private var chartBars: [ActivityBar] {
+        let days = analytics.dailyActivityStats
+        let labels = days.map { activityDayFormatter.string(from: $0.date) }
+        return days.enumerated().flatMap { i, day -> [ActivityBar] in [
+            ActivityBar(label: labels[i], value: day.sessions,   metric: "Sessions"),
+            ActivityBar(label: labels[i], value: day.eventCount, metric: "Events")
+        ]}
+    }
+
+    private var chartDayLabels: [String] {
+        analytics.dailyActivityStats.map { activityDayFormatter.string(from: $0.date) }
+    }
 
     var body: some View {
         ScrollView {
@@ -83,32 +107,17 @@ struct VersionActivityView: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal)
             } else {
-                // Flatten daily stats into two series for grouped bars
-                let chartData: [(date: Date, value: Int, metric: String)] =
-                    analytics.dailyActivityStats.flatMap { day in
-                        [(day.date, day.sessions, "Sessions"),
-                         (day.date, day.eventCount, "Events")]
-                    }
-
-                Chart(chartData, id: \.metric) { item in
+                Chart(chartBars) { bar in
                     BarMark(
-                        x: .value("Date", item.date, unit: .day),
-                        y: .value("Count", item.value)
+                        x: .value("Day", bar.label),
+                        y: .value("Count", bar.value)
                     )
-                    .foregroundStyle(by: .value("Metric", item.metric))
-                    .position(by: .value("Metric", item.metric))
+                    .foregroundStyle(by: .value("Metric", bar.metric))
+                    .position(by: .value("Metric", bar.metric), axis: .horizontal)
                     .cornerRadius(3)
                 }
-                .chartForegroundStyleScale([
-                    "Sessions": Color.blue,
-                    "Events":   Color.green
-                ])
-                .chartXAxis {
-                    AxisMarks(values: .stride(by: .day)) { _ in
-                        AxisGridLine()
-                        AxisValueLabel(format: .dateTime.weekday(.abbreviated), centered: true)
-                    }
-                }
+                .chartXScale(domain: chartDayLabels)
+                .chartForegroundStyleScale(["Sessions": Color.blue, "Events": Color.green])
                 .chartLegend(position: .bottom, alignment: .center, spacing: 12)
                 .frame(height: 240)
                 .padding(.horizontal)
