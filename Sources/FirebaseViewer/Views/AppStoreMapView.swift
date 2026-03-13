@@ -28,7 +28,9 @@ struct AppStoreMapView: View {
                 }
             }
             .navigationTitle("Download Map")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { withAnimation { cameraPosition = .automatic } } label: {

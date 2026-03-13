@@ -82,7 +82,9 @@ struct AdMobMapView: View {
                 }
             }
             .navigationTitle("Revenue Map")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { withAnimation { cameraPosition = .automatic } } label: {
@@ -167,7 +169,7 @@ struct AdMobMapView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)
                 .background(
-                    Capsule().fill(isSelected ? Color.green : Color(.systemFill))
+                    Capsule().fill(isSelected ? Color.green : Color.platformSystemFill)
                 )
                 .foregroundStyle(isSelected ? .white : .primary)
         }

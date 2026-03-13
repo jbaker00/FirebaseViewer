@@ -151,10 +151,14 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
 
     nonisolated func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
         MainActor.assumeIsolated {
+            #if canImport(UIKit)
             UIApplication.shared.connectedScenes
                 .compactMap { $0 as? UIWindowScene }
                 .flatMap { $0.windows }
                 .first(where: { $0.isKeyWindow }) ?? UIWindow()
+            #else
+            NSApp.keyWindow ?? NSWindow()
+            #endif
         }
     }
 

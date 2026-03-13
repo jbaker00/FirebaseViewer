@@ -37,7 +37,9 @@ struct AppVersionsView: View {
                 }
             }
             .navigationTitle("Versions")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.large)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     if analytics.isLoading {

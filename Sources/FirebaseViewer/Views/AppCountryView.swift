@@ -83,7 +83,9 @@ struct AppCountryView: View {
                 }
             }
             .navigationTitle("App by Country")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.large)
+            #endif
             .refreshable { if service.isAuthorized { await service.loadStats() } }
         }
     }

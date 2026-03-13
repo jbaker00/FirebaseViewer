@@ -62,7 +62,9 @@ struct ErrorLogsView: View {
                 }
             }
             .navigationTitle("Error Logs")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Menu {

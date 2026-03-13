@@ -18,8 +18,10 @@ struct AdMobView: View {
                 }
             }
             .navigationTitle("AdMob")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.large)
-            .background(Color(.systemGroupedBackground))
+            #endif
+            .background(Color.platformSystemGroupedBackground)
             .refreshable {
                 if service.isAuthorized { await service.loadStats() }
             }
@@ -101,7 +103,7 @@ struct AdMobView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(Color.platformSecondarySystemGroupedBackground)
 
             Divider()
 
@@ -120,7 +122,7 @@ struct AdMobView: View {
                            icon: "antenna.radiowaves.left.and.right", color: .purple)
             }
             .padding(.vertical, 12)
-            .background(Color(.systemBackground))
+            .background(Color.platformSystemBackground)
 
             // ── By App ──
             if !report.appBreakdown.isEmpty {
@@ -151,7 +153,7 @@ struct AdMobView: View {
                 )
             }
         }
-        .background(Color(.systemBackground))
+        .background(Color.platformSystemBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .shadow(color: Color.black.opacity(0.10), radius: 6, x: 0, y: 2)
     }
@@ -188,7 +190,7 @@ struct AdMobView: View {
                     .padding(.vertical, 10)
                 }
             }
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(Color.platformSecondarySystemGroupedBackground)
         } label: {
             Label(label, systemImage: icon)
                 .font(.subheadline.weight(.semibold))

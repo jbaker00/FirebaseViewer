@@ -18,7 +18,9 @@ struct DownloadsView: View {
                 }
             }
             .navigationTitle("App Store Downloads")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.large)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     if asc.isLoading {

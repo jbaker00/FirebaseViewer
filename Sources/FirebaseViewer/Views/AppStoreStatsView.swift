@@ -17,7 +17,9 @@ struct AppStoreStatsView: View {
                 }
             }
             .navigationTitle("App Store Stats")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.large)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     if asc.isLoading {

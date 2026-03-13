@@ -48,7 +48,9 @@ struct LogView: View {
                 }
             }
             .navigationTitle("Debug Logs")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button {

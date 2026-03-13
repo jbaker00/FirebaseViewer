@@ -27,3 +27,26 @@ targets:
           - Resources/Info.plist
     resources:
       - Sources/FirebaseViewer/Resources
+
+  FirebaseViewerMac:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: Sources/FirebaseViewer
+        excludes:
+          - Resources/Info.plist
+          - Resources/macOS-Info.plist
+    resources:
+      - Sources/FirebaseViewer/Resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jamesbaker.FirebaseViewerMac
+        INFOPLIST_FILE: Sources/FirebaseViewer/Resources/macOS-Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        MARKETING_VERSION: "1.8"
+        CURRENT_PROJECT_VERSION: "1"
+        DEVELOPMENT_TEAM: "4PDB3TQD2G"
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_VERSION: "5.9"
+

@@ -16,8 +16,10 @@ struct DatabaseView: View {
                 }
             }
             .navigationTitle("Database")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.large)
-            .background(Color(.systemGroupedBackground))
+            #endif
+            .background(Color.platformSystemGroupedBackground)
             .refreshable { await analytics.loadAll() }
         }
     }

@@ -20,7 +20,9 @@ struct MapView: View {
                 }
             }
             .navigationTitle("User Map")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: resetCamera) {

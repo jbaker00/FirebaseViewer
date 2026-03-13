@@ -18,7 +18,9 @@ struct DashboardView: View {
                 }
             }
             .navigationTitle("Firebase Analytics")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.large)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     if analytics.isLoading {
