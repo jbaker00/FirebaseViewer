@@ -13,6 +13,9 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
     @Published var todayAppStats: [AdMobAppStats] = []    // today per-app
     @Published var countryStats: [AdMobCountryStats] = [] // all-time per-country
     @Published var multiPeriodReports: [AdMobPeriodReport] = [] // Today/Yesterday/7d/30d
+    @Published var allTimeEarnings: Double = 0            // all-time total earnings
+    @Published var allTimeAppStats: [AdMobAppStats] = []  // all-time per-app breakdown
+    @Published var paidOutAmount: Double = 0              // user-configured paid out amount
     @Published var isLoading = false
     @Published var hasData = false   // true once first successful load completes
     @Published var error: String?
@@ -24,6 +27,7 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
     private let quotaProject = "globalvibes-1a6aa"
 
     private let tokenKey = "admob_refresh_token"
+    private let paidOutKey = "admob_paid_out_amount"
     private var accessToken: String?
     private var tokenExpiry: Date = .distantPast
 
@@ -35,6 +39,11 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
         if let data = KeychainService.loadData(tokenKey) {
             isAuthorized = true
             _ = data // token stored, will use on next fetch
+        }
+        // Restore saved paid out amount
+        if let data = UserDefaults.standard.data(forKey: paidOutKey),
+           let amount = try? JSONDecoder().decode(Double.self, from: data) {
+            paidOutAmount = amount
         }
     }
 
@@ -91,7 +100,18 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
         todayAppStats = []
         todayEarnings = 0
         countryStats = []
+        allTimeEarnings = 0
         hasData = false
+    }
+
+    func updatePaidOutAmount(_ amount: Double) {
+        paidOutAmount = amount
+        if let encoded = try? JSONEncoder().encode(amount) {
+            UserDefaults.standard.set(encoded, forKey: paidOutKey)
+        }
+        // Recalculate unpaid earnings
+        stats.paidOut = paidOutAmount
+        stats.unpaidEarnings = allTimeEarnings - paidOutAmount
     }
 
     func loadStats() async {
@@ -116,6 +136,7 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
             async let thirtyDayTask  = fetchEarnings(publisherID: publisherID, token: token, daysBack: 30)
             async let todayTask      = fetchEarnings(publisherID: publisherID, token: token, daysBack: 0)
             async let countryTask    = fetchCountryEarnings(publisherID: publisherID, token: token)
+            async let allTimeTask    = fetchAllTimeEarnings(publisherID: publisherID, token: token)
             async let todayPeriod    = fetchPeriodReport(publisherID: publisherID, token: token,
                                                          label: "Today",
                                                          startDate: todayStart, endDate: now)
@@ -129,8 +150,8 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
                                                          label: "Last 30 Days",
                                                          startDate: last30Start, endDate: now)
 
-            let ((totalStats, perApp), (todayStats, todayPerApp), countries,
-                 p0, p1, p2, p3) = try await (thirtyDayTask, todayTask, countryTask,
+            let ((totalStats, perApp), (todayStats, todayPerApp), countries, (allTime, allTimePerApp),
+                 p0, p1, p2, p3) = try await (thirtyDayTask, todayTask, countryTask, allTimeTask,
                                                todayPeriod, yesterdayPeriod, last7Period, last30Period)
             self.stats = totalStats
             self.appStats = perApp
@@ -138,8 +159,16 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
             self.todayAppStats = todayPerApp
             self.countryStats = countries.sorted { $0.earnings > $1.earnings }
             self.multiPeriodReports = [p0, p1, p2, p3]
+            self.allTimeEarnings = allTime.totalEarnings
+            self.allTimeAppStats = allTimePerApp
+
+            // Update paid out and unpaid earnings
+            self.stats.paidOut = paidOutAmount
+            self.stats.unpaidEarnings = allTimeEarnings - paidOutAmount
+
             self.hasData = true
             AppLogger.log("AdMob today earnings: $\(String(format: "%.4f", todayStats.totalEarnings))", tag: "AdMob")
+            AppLogger.log("AdMob all-time earnings: $\(String(format: "%.2f", allTime.totalEarnings))", tag: "AdMob")
             AppLogger.log("AdMob country stats: \(countries.count) countries", tag: "AdMob")
         } catch {
             self.error = error.localizedDescription
@@ -407,6 +436,64 @@ final class AdMobService: NSObject, ObservableObject, ASWebAuthenticationPresent
         }
         AppLogger.log("AdMob country map: \(result.count) countries", tag: "AdMob")
         return result
+    }
+
+    // MARK: - All-time earnings (from 2015-01-01 to today, aggregated by app)
+
+    private func fetchAllTimeEarnings(publisherID: String, token: String) async throws -> (AdMobStats, [AdMobAppStats]) {
+        let today = Date()
+        let cal = Calendar(identifier: .gregorian)
+        let end = cal.dateComponents([.year, .month, .day], from: today)
+
+        let url = URL(string: "https://admob.googleapis.com/v1/\(publisherID)/networkReport:generate")!
+        var req = admobRequest(url: url, token: token)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = [
+            "reportSpec": [
+                "dateRange": [
+                    "startDate": ["year": 2015, "month": 1, "day": 1],
+                    "endDate":   ["year": end.year!, "month": end.month!, "day": end.day!]
+                ],
+                "dimensions": ["APP"],
+                "metrics": ["ESTIMATED_EARNINGS", "IMPRESSIONS", "CLICKS"]
+            ]
+        ]
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        guard let http = resp as? HTTPURLResponse, http.statusCode == 200,
+              let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            AppLogger.error("AdMob all-time fetch failed", tag: "AdMob")
+            return (AdMobStats(), [])
+        }
+
+        var totalEarnings = 0.0, totalImpressions = 0, totalClicks = 0
+        var perApp: [AdMobAppStats] = []
+
+        for obj in array {
+            guard let row = obj["row"] as? [String: Any] else { continue }
+            let dims    = row["dimensionValues"] as? [String: Any]
+            let metrics = row["metricValues"]    as? [String: Any]
+            let appName = (dims?["APP"] as? [String: Any])?["displayLabel"] as? String ?? "Unknown App"
+
+            let earnings    = microsDollar(from: metrics, key: "ESTIMATED_EARNINGS")
+            let impressions = intValue(from: metrics, key: "IMPRESSIONS")
+            let clicks      = intValue(from: metrics, key: "CLICKS")
+
+            totalEarnings    += earnings
+            totalImpressions += impressions
+            totalClicks      += clicks
+            perApp.append(AdMobAppStats(appName: appName, earnings: earnings, impressions: impressions))
+        }
+
+        var s = AdMobStats()
+        s.totalEarnings = totalEarnings
+        s.impressions   = totalImpressions
+        s.clicks        = totalClicks
+        s.ecpm = totalImpressions > 0 ? (totalEarnings / Double(totalImpressions)) * 1000 : 0
+        return (s, perApp.sorted { $0.earnings > $1.earnings })
     }
 
     // MARK: - Multi-period report (Today / Yesterday / Last 7 Days / Last 30 Days)
