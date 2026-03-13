@@ -10,6 +10,8 @@ final class AnalyticsService: ObservableObject {
     @Published var versionCountryStats: [VersionCountryStats] = []
     @Published var firestoreStats: [FirestoreCollectionStats] = []
     @Published var ttsQuotaStats = TTSQuotaStats()
+    @Published var versionPeriodStats: [VersionPeriodStats] = []
+    @Published var dailyActivityStats: [DailyActivityStats] = []
     @Published var isLoading = false
     @Published var error: String?
 
@@ -30,6 +32,8 @@ final class AnalyticsService: ObservableObject {
         appVersionStats = []
         versionCountryStats = []
         firestoreStats = []
+        versionPeriodStats = []
+        dailyActivityStats = []
         error = nil
         await loadAll()
     }
@@ -48,16 +52,20 @@ final class AnalyticsService: ObservableObject {
                 let streamFilter = selectedProject.streamIDs.map { RunReportRequest.streamFilter(ids: $0) }
                 do {
                     let token = try await getToken(forProperty: propertyID)
-                    async let statsTask   = fetchStats(token: token, propertyID: propertyID, filter: streamFilter)
-                    async let countryTask = fetchCountryData(token: token, propertyID: propertyID, filter: streamFilter)
-                    async let versionTask = fetchAppVersionData(token: token, propertyID: propertyID, filter: streamFilter)
+                    async let statsTask         = fetchStats(token: token, propertyID: propertyID, filter: streamFilter)
+                    async let countryTask       = fetchCountryData(token: token, propertyID: propertyID, filter: streamFilter)
+                    async let versionTask       = fetchAppVersionData(token: token, propertyID: propertyID, filter: streamFilter)
                     async let versionCountryTask = fetchVersionCountryData(token: token, propertyID: propertyID, filter: streamFilter)
-                    let (newStats, countries, versions, versionCountries, fs) = try await (statsTask, countryTask, versionTask, versionCountryTask, fsTask)
+                    async let periodTask        = fetchVersionPeriodData(token: token, propertyID: propertyID, filter: streamFilter)
+                    async let dailyTask         = fetchDailyActivity(token: token, propertyID: propertyID, filter: streamFilter)
+                    let (newStats, countries, versions, versionCountries, fs, periods, daily) = try await (statsTask, countryTask, versionTask, versionCountryTask, fsTask, periodTask, dailyTask)
                     self.stats = newStats
                     self.countryData = countries
                     self.appVersionStats = versions
                     self.versionCountryStats = versionCountries
                     self.firestoreStats = fs
+                    self.versionPeriodStats = periods
+                    self.dailyActivityStats = daily
                 } catch let err as NSError where err.code == 403 {
                     // SA not yet granted access to this GA4 property
                     AppLogger.error("GA4 403 for property \(propertyID) — grant SA viewer access in GA4 console", tag: "GA4")
@@ -74,15 +82,19 @@ final class AnalyticsService: ObservableObject {
             let streamFilter = selectedProject.streamIDs.map { RunReportRequest.streamFilter(ids: $0) }
             do {
                 let token = try await getToken(forProperty: propertyID)
-                async let statsTask   = fetchStats(token: token, propertyID: propertyID, filter: streamFilter)
-                async let countryTask = fetchCountryData(token: token, propertyID: propertyID, filter: streamFilter)
-                async let versionTask = fetchAppVersionData(token: token, propertyID: propertyID, filter: streamFilter)
+                async let statsTask          = fetchStats(token: token, propertyID: propertyID, filter: streamFilter)
+                async let countryTask        = fetchCountryData(token: token, propertyID: propertyID, filter: streamFilter)
+                async let versionTask        = fetchAppVersionData(token: token, propertyID: propertyID, filter: streamFilter)
                 async let versionCountryTask = fetchVersionCountryData(token: token, propertyID: propertyID, filter: streamFilter)
-                let (newStats, countries, versions, versionCountries) = try await (statsTask, countryTask, versionTask, versionCountryTask)
+                async let periodTask         = fetchVersionPeriodData(token: token, propertyID: propertyID, filter: streamFilter)
+                async let dailyTask          = fetchDailyActivity(token: token, propertyID: propertyID, filter: streamFilter)
+                let (newStats, countries, versions, versionCountries, periods, daily) = try await (statsTask, countryTask, versionTask, versionCountryTask, periodTask, dailyTask)
                 self.stats = newStats
                 self.countryData = countries
                 self.appVersionStats = versions
                 self.versionCountryStats = versionCountries
+                self.versionPeriodStats = periods
+                self.dailyActivityStats = daily
             } catch let err as NSError where err.code == 403 {
                 AppLogger.error("GA4 403 for property \(propertyID) — check SA permissions", tag: "GA4")
                 self.error = "Permission denied for GA4 property \(propertyID). Grant your service account Viewer access in the GA4 console."
@@ -257,6 +269,77 @@ final class AnalyticsService: ObservableObject {
             tag: "GA4"
         )
         return stats
+    }
+
+    // MARK: - Fetch version stats across three periods (today / yesterday / 30 days)
+
+    private func fetchVersionPeriodData(token: String, propertyID: String, filter: RunReportRequest.DimensionFilter?) async throws -> [VersionPeriodStats] {
+        let request = RunReportRequest(
+            dateRanges: [
+                .init(startDate: "today",      endDate: "today",      name: "today"),
+                .init(startDate: "yesterday",  endDate: "yesterday",  name: "yesterday"),
+                .init(startDate: "30daysAgo",  endDate: "today",      name: "30days")
+            ],
+            dimensions: [.init(name: "appVersion"), .init(name: "dateRange")],
+            metrics: [.init(name: "sessions"), .init(name: "eventCount")],
+            limit: 200,
+            dimensionFilter: filter
+        )
+        let response = try await runReport(request: request, token: token, propertyID: propertyID)
+
+        // Accumulate per-version, per-range counts
+        var byVersion: [String: (todaySess: Int, todayEv: Int, ySess: Int, yEv: Int, m30Sess: Int, m30Ev: Int)] = [:]
+        for row in response.rows ?? [] {
+            let dims = row.dimensionValues ?? []
+            let vals = row.metricValues.map { Int($0.value) ?? 0 }
+            guard dims.count >= 2, vals.count >= 2 else { continue }
+            let version  = dims[0].value
+            let range    = dims[1].value
+            let sessions = vals[0]
+            let events   = vals[1]
+            var entry = byVersion[version] ?? (0, 0, 0, 0, 0, 0)
+            switch range {
+            case "date_range_0": entry.todaySess += sessions; entry.todayEv += events
+            case "date_range_1": entry.ySess     += sessions; entry.yEv     += events
+            case "date_range_2": entry.m30Sess   += sessions; entry.m30Ev   += events
+            default: break
+            }
+            byVersion[version] = entry
+        }
+        return byVersion.map { version, e in
+            VersionPeriodStats(
+                version: version,
+                todaySessions: e.todaySess, todayEvents: e.todayEv,
+                yesterdaySessions: e.ySess, yesterdayEvents: e.yEv,
+                thirtyDaySessions: e.m30Sess, thirtyDayEvents: e.m30Ev
+            )
+        }
+        .sorted { $0.thirtyDaySessions > $1.thirtyDaySessions }
+    }
+
+    // MARK: - Fetch daily sessions + events for the last 7 days
+
+    private func fetchDailyActivity(token: String, propertyID: String, filter: RunReportRequest.DimensionFilter?) async throws -> [DailyActivityStats] {
+        let request = RunReportRequest(
+            dateRanges: [.init(startDate: "6daysAgo", endDate: "today")],
+            dimensions: [.init(name: "date")],
+            metrics: [.init(name: "sessions"), .init(name: "eventCount")],
+            limit: 7,
+            dimensionFilter: filter
+        )
+        let response = try await runReport(request: request, token: token, propertyID: propertyID)
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyyMMdd"
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        return (response.rows ?? []).compactMap { row in
+            let dims = row.dimensionValues ?? []
+            let vals = row.metricValues.map { Int($0.value) ?? 0 }
+            guard let dateStr = dims.first?.value,
+                  let date = fmt.date(from: dateStr),
+                  vals.count >= 2 else { return nil }
+            return DailyActivityStats(date: date, sessions: vals[0], eventCount: vals[1])
+        }
+        .sorted { $0.date < $1.date }
     }
 
     // MARK: - API call
